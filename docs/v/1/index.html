@@ -130,7 +130,13 @@ main[hidden],.chat[hidden]{display:none}
 .tut .en{opacity:.7}
 .tut .en h2{font-size:9px}
 .inrow{display:flex;gap:8px;padding:10px 16px 14px;border-top:2px solid var(--line)}
-.inrow input{flex:1;height:46px;background:var(--panel);border:2px solid var(--line);padding:0 12px;font-size:21px}
+.inrow{align-items:flex-end}
+.inrow textarea{flex:1;min-height:46px;max-height:168px;height:46px;background:var(--panel);border:2px solid var(--line);padding:8px 12px;font-size:21px;line-height:1.25;resize:none;overflow-y:auto;font-family:inherit;color:#fff;display:block}
+.inrow textarea[hidden]{display:none}
+.wave{flex:1;height:46px;display:flex;align-items:center;gap:10px;border:2px solid var(--pink);background:#1e1732;padding:0 10px}
+.wave[hidden]{display:none}
+.wave canvas{flex:1;height:30px;min-width:0}
+.wave span{font-size:11px;opacity:.8}
 .send,.mic{width:50px;height:46px;background:none;border:2px solid #fff;display:grid;place-items:center;padding:0}
 .mic{border-color:var(--line)}
 .mic[hidden]{display:none}
@@ -255,11 +261,12 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <form class="inrow" id="form">
       <label for="msg" class="sr">Mensagem</label>
-      <input id="msg" autocomplete="off" placeholder="Type in English…">
+      <textarea id="msg" rows="1" autocomplete="off" placeholder="Type in English…"></textarea>
+      <div class="wave" id="wave" hidden><canvas id="waveC"></canvas><span id="waveT" class="px">0:00</span></div>
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 25/11 19:20</div>
+    <div class="ver" id="ver">v1 · build 25/11 19:35</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -322,6 +329,7 @@ const ICONS = {
   down:["...ww...","...ww...","...ww...","wwwwwwww",".wwwwww.","..wwww..","...ww...","wwwwwwww"],
   gear:["...ww...",".w.ww.w.","..wwww..","wwww.www","www.wwww","..wwww..",".w.ww.w.","...ww..."],
   help:["..wwww..",".ww..ww.",".....ww.","....ww..","...ww...","...ww...","........","...ww..."],
+  stop:["........",".wwwwww.",".wwwwww.",".wwwwww.",".wwwwww.",".wwwwww.",".wwwwww.","........"],
   mic:["...ww...","..wwww..","..wwww..","..wwww..","w.wwww.w",".wwwwww.","...ww...","..wwww.."],
   send:[".........ww",".......wwww",".....wwwww.","...wwwwwww.","wwwwwwwwww.","..wwww.ww..","...ww..w...","...w......."],
   pause:["ww..ww..","ww..ww..","ww..ww..","ww..ww..","ww..ww..","ww..ww..","ww..ww..","........"],
@@ -1137,36 +1145,99 @@ async function speakText(text, btn, isMe){
   done();
 }
 document.addEventListener("visibilitychange", () => { if (document.hidden) stopSpeech(); });
-function setMic(){ $("mic").classList.toggle("rec", listening); $("mic").setAttribute("aria-label", listening ? "Parar e enviar" : "Gravar áudio"); }
+/* ---------- microfone: grava, mostra a onda da voz, para e deixa o texto para revisar ---------- */
+let srRec = null, recFin = "", recTmp = "", sendAfterRec = false, waveStream = null, waveCtx = null, waveRaf = null, waveT0 = 0, waveLv = [], noWave = false, lastResultAt = 0, recStartedWithWave = false;
+function setMic(){
+  const m = $("mic");
+  m.classList.toggle("srRec", listening);
+  m.innerHTML = listening ? pix("stop",3) : pix("mic",3);
+  m.setAttribute("aria-label", listening ? "Parar gravação" : "Gravar áudio");
+  $("form").classList.toggle("recording", listening);
+  $("wave").hidden = !listening; $("msg").hidden = listening;
+  $("sendBtn").setAttribute("aria-label", listening ? "Parar e enviar" : "Enviar");
+}
+function growMsg(){ const t = $("msg"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 4, 168) + "px"; }
+function drawWave(){
+  const c = $("waveC"), g = c.getContext("2d"), w = c.width = c.clientWidth, h = c.height = c.clientHeight;
+  g.clearRect(0, 0, w, h);
+  const bw = 4, gap = 3, n = Math.floor(w / (bw + gap)), lv = waveLv.slice(-n);
+  g.fillStyle = "#ffffff";
+  lv.forEach((v, i) => { const bh = Math.max(4, Math.round(v * (h - 6) / 2) * 2); g.fillRect(w - (lv.length - i) * (bw + gap), Math.round((h - bh) / 2), bw, bh); });
+  const s = Math.floor((Date.now() - waveT0) / 1000); $("waveT").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+function waveLoop(an, buf){
+  if (!listening) return;
+  let level;
+  if (an){ an.getByteTimeDomainData(buf); let sum = 0; for (let i = 0; i < buf.length; i++){ const d = (buf[i] - 128) / 128; sum += d * d; } level = Math.min(1, Math.sqrt(sum / buf.length) * 4.5); }
+  else { const talking = Date.now() - lastResultAt < 700; level = talking ? 0.25 + Math.random() * 0.65 : 0.04 + Math.random() * 0.06; }
+  waveLv.push(level); if (waveLv.length > 200) waveLv.shift();
+  drawWave();
+  waveRaf = setTimeout(() => waveLoop(an, buf), 70);
+}
+async function startWave(){
+  waveLv = []; waveT0 = Date.now(); clearTimeout(waveRaf);
+  if (noWave || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ waveLoop(null); return; }
+  try {
+    waveStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}});
+    if (!listening){ stopWave(); return; }
+    waveCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const an = waveCtx.createAnalyser(); an.fftSize = 512;
+    waveCtx.createMediaStreamSource(waveStream).connect(an);
+    recStartedWithWave = true;
+    waveLoop(an, new Uint8Array(an.fftSize));
+  } catch(e) { waveLoop(null); }
+}
+function stopWave(){
+  clearTimeout(waveRaf); waveRaf = null;
+  try { if (waveStream) waveStream.getTracks().forEach(t => t.stop()); } catch(e) {}
+  try { if (waveCtx) waveCtx.close(); } catch(e) {}
+  waveStream = null; waveCtx = null;
+}
+function startRec(keep){
+  srRec = new SR(); window._rec = srRec; srRec.lang = "en-US"; srRec.interimResults = true; srRec.continuous = true;
+  if (!keep){ recFin = $("msg").value.trim() ? $("msg").value.trim() + " " : ""; recTmp = ""; }
+  srRec.onresult = ev => {
+    let tmp = ""; lastResultAt = Date.now();
+    for (let i = ev.resultIndex; i < ev.results.length; i++){ const r = ev.results[i]; if (r.isFinal) recFin += r[0].transcript + " "; else tmp += r[0].transcript; }
+    recTmp = tmp;
+  };
+  srRec.onerror = ev => {
+    // Alguns celulares não deixam o reconhecimento e a onda usarem o microfone juntos: desliga a onda e tenta de novo.
+    if (recStartedWithWave && !noWave && ev.error === "audio-capture"){ noWave = true; stopWave(); const old = srRec; old.onend = null; try { startRec(true); } catch(e) {} waveLoop(null); return; }
+  };
+  srRec.onend = () => {
+    if (srRec && srRec._restart) return;
+    listening = false; stopWave(); setMic();
+    const text = (recFin + recTmp).replace(/\s+/g, " ").trim();
+    $("msg").value = text; growMsg();
+    if (text) voiceTurn = true;
+    if (sendAfterRec && text){ sendAfterRec = false; submitNow(); }
+    sendAfterRec = false;
+  };
+  srRec.start();
+}
 $("mic").onclick = () => {
-  if (listening){ if (dict) dict.stop().catch(()=>{}); else if (window._rec) window._rec.stop(); return; }
+  if (listening){ try { srRec && srRec.stop(); } catch(e) {} return; }
   stopSpeech();
-  if (dict){
-    dictBase = $("msg").value.trim(); listening = true; setMic();
-    dict.start().catch(e => { listening = false; setMic(); if (e && e.code === "not_granted"){ dict = null; $("mic").hidden = !SR; } });
-    return;
-  }
   if (!SR) return;
-  const rec = new SR(); window._rec = rec; rec.lang = "en-US"; rec.interimResults = true; rec.continuous = true;
-  let fin = $("msg").value.trim() ? $("msg").value.trim() + " " : "";
-  rec.onresult = ev => { let tmp = ""; for (let i = ev.resultIndex; i < ev.results.length; i++){ const r = ev.results[i]; if (r.isFinal) fin += r[0].transcript + " "; else tmp += r[0].transcript; } $("msg").value = (fin + tmp).trim(); };
-  rec.onend = () => { listening = false; setMic(); if ($("msg").value.trim()){ voiceTurn = true; submitNow(); } };
-  rec.onerror = () => { listening = false; setMic(); };
-  try { rec.start(); listening = true; setMic(); } catch(e) { $("mic").hidden = true; }
+  try { listening = true; recStartedWithWave = false; setMic(); startRec(false); startWave(); }
+  catch(e) { listening = false; setMic(); $("mic").hidden = true; }
 };
+$("msg").addEventListener("input", () => { growMsg(); if (!$("msg").value.trim()) voiceTurn = false; });
+$("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); if (!listening) submitNow(); } });
 
 /* ---------- input ---------- */
 function submitNow(){
-  const voice = voiceTurn; voiceTurn = false;
   const v = $("msg").value.trim(); if (!v || S.busy) return;
-  $("msg").value = "";
+  const voice = voiceTurn; voiceTurn = false;
+  $("msg").value = ""; growMsg();
   if (S.view !== "chat"){ S.view = "chat"; render(); }
   userSay(v, voice);
   if (parseDate(v)){ goDate(v, true); return; }
   S.hist.push({r:"u", t:v});
   if (sample) askClaude(v, voice); else offline(v, null, voice);
 }
-$("form").onsubmit = e => { e.preventDefault(); if (!listening) submitNow(); };
+$("form").onsubmit = e => { e.preventDefault(); if (listening){ sendAfterRec = true; try { srRec && srRec.stop(); } catch(x) {} return; } submitNow(); };
 document.querySelectorAll(".lv").forEach(b => b.onclick = () => { S.level = b.dataset.lv; store("ea-level", S.level); render(); });
 $("t-chat").onclick = () => { S.view = "chat"; render(); };
 $("t-day").onclick = () => { S.view = "day"; render(); };
