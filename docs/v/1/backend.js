@@ -29,10 +29,11 @@ async function getAIInst() {
   aiInst = aiMod.getAI(app, { backend: new aiMod.GoogleAIBackend() });
   return aiInst;
 }
-async function getModel() {
-  if (model) return model;
-  model = aiMod.getGenerativeModel(await getAIInst(), { model: AI_MODEL });
-  return model;
+// Se o modelo principal falhar (ex.: aposentado), tenta os próximos e guarda o que funcionou.
+const CHAT_MODELS = [AI_MODEL, "gemini-flash-latest", "gemini-3-flash-preview", "gemini-2.5-flash-lite"].filter((x, i, a) => x && a.indexOf(x) === i);
+let chatModelOk = null;
+async function getModel(name) {
+  return aiMod.getGenerativeModel(await getAIInst(), { model: name });
 }
 // Voz IA: modelos de texto-para-fala do Gemini (o primeiro que funcionar fica guardado).
 const TTS_MODELS = ["gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"];
@@ -168,12 +169,17 @@ const EA = {
     const dref = doc(db, "users", u.uid, "days", today());
     try { const d = await getDoc(dref); if (d.exists() && (d.data().ai || 0) >= AI_DAILY_LIMIT) throw { code: "limit" }; }
     catch (e) { if (e && e.code === "limit") throw e; }
-    const m = await getModel();
-    let text = "";
-    try {
-      const r = await m.generateContentStream(prompt);
-      for await (const ch of r.stream) { text += ch.text(); if (onText) onText({ text }); }
-    } catch (e) { console.warn("ai", e); throw { code: "ai", message: String(e && e.message || e) }; }
+    let text = "", ok = false, last = null;
+    for (const name of (chatModelOk ? [chatModelOk] : CHAT_MODELS)) {
+      text = "";
+      try {
+        const m = await getModel(name);
+        const r = await m.generateContentStream(prompt);
+        for await (const ch of r.stream) { text += ch.text(); if (onText) onText({ text }); }
+        chatModelOk = name; ok = true; break;
+      } catch (e) { console.warn("ai", name, e); last = e; if (text) break; }
+    }
+    if (!ok) throw { code: "ai", message: String(last && last.message || last) };
     try { await setDoc(dref, { ai: increment(1) }, { merge: true }); } catch (e) {}
     return { text };
   },
