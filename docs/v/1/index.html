@@ -863,7 +863,11 @@ async function askClaude(text, voice, mode, about){
   } catch (e) {
     if (e && e.code === "not_granted"){ sample = null; offline(text, box, voice); }
     else if (e && e.code === "limit") box.textContent = "Você usou todas as mensagens do professor de hoje. Volte amanhã, ou treine com PERGUNTA, NEGATIVA e OUTRO SUJEITO no caderno.";
-    else box.textContent = e && e.code === "rate_limited" ? "Muitas mensagens seguidas. Espere um pouco." : "Não consegui falar com o professor agora. Tente de novo.";
+    else {
+      box.textContent = e && e.code === "rate_limited" ? "Muitas mensagens seguidas. Espere um pouco." : "Não consegui falar com o professor agora. Tente de novo.";
+      const det = String((e && (e.message || e.code)) || "").replace(/\s+/g," ").slice(0,220);
+      if (det) { const sm = el("small","err-det","Detalhe: " + det); sm.style.cssText = "display:block;opacity:.6;font-size:.72em;margin-top:8px;word-break:break-word"; box.append(sm); }
+    }
   }
   S.busy = false;
 }
