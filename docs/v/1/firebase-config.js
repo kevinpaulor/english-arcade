@@ -9,7 +9,7 @@ export const firebaseConfig = {
   appId: "1:698700392290:web:6f8c27eeb64e28ca97ae3b"
 };
 // UID do administrador (aparece na central admin na primeira vez que você entra).
-export const ADMIN_UIDS = ["COLE_SEU_UID_AQUI"];
+export const ADMIN_UIDS = ["GDlCUy3WvYYXGasJxpFa6tWCm1S2"];
 // Modelo de IA (Gemini pelo Firebase AI Logic, plano Spark) e limite diário por pessoa.
 export const AI_MODEL = "gemini-2.5-flash";
 export const AI_DAILY_LIMIT = 60;

@@ -1,10 +1,10 @@
 rules_version = '2';
 // English Arcade — regras do Firestore
-// Troque COLE_SEU_UID_AQUI pelo seu UID (aparece na central admin na primeira vez que você entra).
+// Troque GDlCUy3WvYYXGasJxpFa6tWCm1S2 pelo seu UID (aparece na central admin na primeira vez que você entra).
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function isAdmin() { return signedIn() && request.auth.uid in ['COLE_SEU_UID_AQUI']; }
+    function isAdmin() { return signedIn() && request.auth.uid in ['GDlCUy3WvYYXGasJxpFa6tWCm1S2']; }
     function isMe(uid) { return signedIn() && request.auth.uid == uid; }
 
     // Dados de uso que o admin pode ver: nome, email, online, tempo, pontos.
