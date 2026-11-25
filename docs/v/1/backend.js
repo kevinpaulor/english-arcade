@@ -46,7 +46,7 @@ async function ttsOnce(name, text, lang) {
   const inst = await getAIInst();
   const mdl = aiMod.getGenerativeModel(inst, {
     model: name,
-    generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } }, languageCode: lang } }
+    generationConfig: { responseModalities: ["AUDIO"], speechConfig: Object.assign({ voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } }, lang ? { languageCode: lang } : {}) }
   });
   const r = await mdl.generateContent([{ text }]);
   const parts = (((r.response.candidates || [])[0] || {}).content || {}).parts || [];
@@ -196,7 +196,7 @@ const EA = {
     await getAIInst();
     let out = null, last = null;
     for (const name of (ttsModelOk ? [ttsModelOk] : TTS_MODELS)) {
-      try { out = await ttsOnce(name, String(text).slice(0, 1500), lang || "en-US"); ttsModelOk = name; break; }
+      try { out = await ttsOnce(name, String(text).slice(0, 1500), lang); ttsModelOk = name; break; }
       catch (e) { last = e; console.warn("tts", name, e); }
     }
     if (!out) throw { code: "tts", message: String(last && last.message || last) };

@@ -266,7 +266,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 25/11 19:35</div>
+    <div class="ver" id="ver">v1 · build 25/11 19:45</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -1030,20 +1030,41 @@ const VOICES = {
   ai:      {n:"VOZ IA (GEMINI)", d:"Voz natural feita pela IA do Gemini, grátis dentro do limite diário. Precisa estar logado. Se falhar, uso a 8-BIT SUAVE.", sam:null, filter:false},
   device:  {n:"VOZ DO APARELHO", d:"Voz natural do celular ou do computador. Se o aparelho não tiver voz, uso a 8-BIT SUAVE.", sam:null, filter:true}
 };
-function samSay(text, done, pt){
+/* separa o texto em trechos em português e em inglês, para cada um ser lido com a pronúncia certa */
+const PT_WORDS = /\b(você|voce|não|nao|para|nós|nos|uma|um|que|com|isso|esse|essa|está|esta|são|sao|eu|ele|ela|meu|minha|seu|sua|os|as|do|da|dos|das|no|na|em|é|e|o|de|por|mais|muito|como|quando|onde|porque|então|também|aqui|hoje|amanhã|ontem|frase|palavra|tradução|traduza)\b/gi;
+const EN_WORDS = /\b(the|you|he|she|it|we|they|is|are|was|were|be|have|has|had|do|does|did|to|of|and|in|on|at|for|with|this|that|what|could|would|can|will|not|my|your|his|her|a|an|i)\b/gi;
+function isPt(t){
+  if (/[ãõçáéíóúâêôà]/i.test(t)) return true;
+  const p = (t.match(PT_WORDS) || []).length, e = (t.match(EN_WORDS) || []).length;
+  return p > e;
+}
+function langSegments(text){
+  const chunks = String(text).match(/["“”][^"“”]+["“”]?|[^"“”.!?:;]+[.!?:;]*/g) || [text];
+  const out = [];
+  chunks.forEach(c => {
+    const t = c.replace(/["“”]/g, "").trim(); if (!t || !/[A-Za-zÀ-ü]/.test(t)) return;
+    const pt = isPt(t), last = out[out.length - 1];
+    if (last && last.pt === pt) last.t += " " + t; else out.push({t, pt});
+  });
+  return out.length ? out : [{t: String(text), pt: false}];
+}
+function samSay(text, done, pt, segs){
   if (!window.SamJs) return false;
   try {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume();
     const vk = S.voice === "classic" ? "classic" : "soft";
     const sam = samVoices[vk] = samVoices[vk] || new window.SamJs(VOICES[vk].sam);
-    let parts;
-    if (pt){
-      parts = ptToSam(text).split(/\s*[.?]\s*/).filter(x => x.trim()).flatMap(p => p.length > 220 ? p.match(/.{1,220}(\s|$)/g) : [p]);
-    } else {
-      const clean = text.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9 .,!?'-]/g," ").replace(/\s+/g," ").trim();
-      parts = clean.split(/(?<=[.!?,])\s+/).flatMap(p => p.length > 200 ? p.match(/.{1,200}(\s|$)/g) : [p]);
-    }
-    const bufs = parts.filter(x => x && x.trim()).map(p => { try { return sam.buf32(p.trim() + (pt ? "." : ""), pt); } catch(e) { return false; } }).filter(Boolean);
+    const bufs = [];
+    (segs || [{t: text, pt}]).forEach(sg => {
+      let parts;
+      if (sg.pt){
+        parts = ptToSam(sg.t).split(/\s*[.?]\s*/).filter(x => x.trim()).flatMap(p => p.length > 220 ? p.match(/.{1,220}(\s|$)/g) : [p]);
+      } else {
+        const clean = sg.t.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z0-9 .,!?'-]/g," ").replace(/\s+/g," ").trim();
+        parts = clean.split(/(?<=[.!?,])\s+/).flatMap(p => p.length > 200 ? p.match(/.{1,200}(\s|$)/g) : [p]);
+      }
+      parts.filter(x => x && x.trim()).forEach(p => { try { const b = sam.buf32(p.trim() + (sg.pt ? "." : ""), sg.pt); if (b) bufs.push(b); } catch(e) {} });
+    });
     if (!bufs.length) return false;
     const gap = 22050 * 0.14, total = bufs.reduce((n,b) => n + b.length + gap, 0);
     const ab = actx.createBuffer(1, Math.ceil(total), 22050), ch = ab.getChannelData(0);
@@ -1101,9 +1122,10 @@ function playBuffer(ab, done){
   samSrc.onended = () => { samSrc = null; done(); }; samSrc.start();
 }
 async function aiAudio(text, pt){
-  const key = (pt ? "pt:" : "en:") + text;
+  const lang = pt === "mix" ? "" : pt ? "pt-BR" : "en-US";
+  const key = lang + ":" + text;
   if (aiCache.has(key)) return aiCache.get(key);
-  const r = await EA.speak(text, pt ? "pt-BR" : "en-US");
+  const r = await EA.speak(text, lang);
   actx = actx || new (window.AudioContext || window.webkitAudioContext)();
   const bytes = Uint8Array.from(atob(r.data), c => c.charCodeAt(0));
   let ab = null;
@@ -1121,11 +1143,12 @@ async function speakText(text, btn, isMe){
   if (!text) return;
   if (playing && btn && playing === btn){ paused ? resumeSpeech() : pauseSpeech(); return; }
   stopSpeech(); const my = speakSeq; playing = btn; markPlaying(btn);
-  const pt = !isMe && /[ãõçáéíóúâêô]/i.test(text);
+  const segs = isMe ? [{t: text, pt: false}] : langSegments(text);
+  const pt = segs.every(x => x.pt), mixed = !pt && segs.some(x => x.pt);
   const done = () => { if (my !== speakSeq) return; markIdle(btn); playing = null; paused = false; engine = null; };
   if (S.voice === "ai" && window.EA && EA.user() && EA.speak){
     try {
-      const ab = await aiAudio(text, pt);
+      const ab = await aiAudio(text, mixed ? "mix" : pt);
       if (my !== speakSeq) return;
       engine = "ctx"; playBuffer(ab, done); return;
     } catch(e) {
@@ -1137,11 +1160,14 @@ async function speakText(text, btn, isMe){
   if (S.voice === "device"){
     if (tts){ try { engine = "tts"; await tts.speak(text, {language: pt ? "pt-BR" : "en"}); done(); return; } catch(e) {} }
     const voices = (() => { try { return window.speechSynthesis ? speechSynthesis.getVoices() : []; } catch(e) { return []; } })();
-    const v = voices.find(x => pt ? /^pt/i.test(x.lang) : /^en/i.test(x.lang));
-    if (v){ try { const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = 0.95; u.onend = done; u.onerror = done; engine = "web"; speechSynthesis.speak(u); return; } catch(e) {} }
+    const vPt = voices.find(x => /^pt/i.test(x.lang)), vEn = voices.find(x => /^en/i.test(x.lang));
+    if (vEn || vPt){ try {
+      engine = "web";
+      segs.forEach((sg, i) => { const v = (sg.pt ? vPt : vEn) || vEn || vPt; const u = new SpeechSynthesisUtterance(sg.t); u.voice = v; u.lang = v.lang; u.rate = 0.95; if (i === segs.length - 1){ u.onend = done; u.onerror = done; } speechSynthesis.speak(u); });
+      return; } catch(e) {} }
   }
   engine = "ctx";
-  if (samSay(text, done, pt)) return;
+  if (samSay(text, done, pt, segs)) return;
   done();
 }
 document.addEventListener("visibilitychange", () => { if (document.hidden) stopSpeech(); });
