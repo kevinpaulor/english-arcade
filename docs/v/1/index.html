@@ -110,6 +110,9 @@ main[hidden],.chat[hidden]{display:none}
 .me .bub{background:#7a1450}
 .bot .bub{background:var(--panel)}
 .txt{flex:1;white-space:pre-line}
+.bub{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.bub.copied{outline:2px solid #fff;outline-offset:2px}
+.copytag{position:fixed;left:50%;top:96px;transform:translateX(-50%);background:#fff;color:#120a24;padding:8px 12px;font-size:12px;z-index:99;pointer-events:none}
 .lab{font-family:'Press Start 2P',monospace;font-size:7px;display:block;margin:8px 0 4px;opacity:.7}
 .lab:first-child{margin-top:0}
 .ico{display:inline-block;vertical-align:-3px;margin-right:6px}
@@ -318,7 +321,7 @@ const ICONS = {
   gear:["...ww...",".w.ww.w.","..wwww..","wwww.www","www.wwww","..wwww..",".w.ww.w.","...ww..."],
   help:["..wwww..",".ww..ww.",".....ww.","....ww..","...ww...","...ww...","........","...ww..."],
   mic:["...ww...","..wwww..","..wwww..","..wwww..","w.wwww.w",".wwwwww.","...ww...","..wwww.."],
-  send:["ww......","wwww....","wwwwww..","wwwwwwww","wwwwww..","wwww....","ww......","........"],
+  send:[".........ww",".......wwww",".....wwwww.","...wwwwwww.","wwwwwwwwww.","..wwww.ww..","...ww..w...","...w......."],
   pause:["ww..ww..","ww..ww..","ww..ww..","ww..ww..","ww..ww..","ww..ww..","ww..ww..","........"],
   play:["w.......","www.....","wwwww...","wwwwwww.","wwwww...","www.....","w.......","........"],
   br:["GGGGGGGGGGGG","GGGGGYYGGGGG","GGGYYYBBYGGG","GYYYBBBBBYYG","GYYYBBBBBYYG","GGGYYYBBYGGG","GGGGGYYGGGGG","GGGGGGGGGGGG"],
@@ -776,6 +779,31 @@ function syncTutorial(){
   if (!S.tut && cur) cur.remove();
 }
 
+/* ---------- segurar a mensagem = copiar ---------- */
+async function copyText(txt){
+  try { await navigator.clipboard.writeText(txt); return true; } catch(e) {}
+  try { const ta = document.createElement("textarea"); ta.value = txt; ta.style.cssText = "position:fixed;opacity:0"; document.body.append(ta); ta.select(); const ok = document.execCommand("copy"); ta.remove(); return ok; } catch(e) { return false; }
+}
+function copyTag(msg){ const old = document.querySelector(".copytag"); if (old) old.remove(); const tg = el("div","copytag px",msg); document.body.append(tg); setTimeout(() => tg.remove(), 1400); }
+function longPressCopy(b, t){
+  let timer = null, sx = 0, sy = 0;
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  b.addEventListener("contextmenu", e => e.preventDefault());
+  b.addEventListener("pointerdown", e => {
+    if (e.target.closest("button")) return;
+    sx = e.clientX; sy = e.clientY; cancel();
+    timer = setTimeout(async () => {
+      timer = null;
+      const txt = (t.innerText || "").replace(/^ÁUDIO TRANSCRITO\s*/,"").replace(/\n?Detalhe:.*$/s,"").trim();
+      const ok = await copyText(txt);
+      b.classList.add("copied"); setTimeout(() => b.classList.remove("copied"), 600);
+      try { navigator.vibrate && navigator.vibrate(30); } catch(e) {}
+      copyTag(ok ? "COPIADO ✓" : "NÃO DEU PARA COPIAR");
+    }, 550);
+  });
+  b.addEventListener("pointermove", e => { if (timer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) cancel(); });
+  ["pointerup","pointercancel","pointerleave"].forEach(ev => b.addEventListener(ev, cancel));
+}
 /* ---------- chat rendering ---------- */
 const PLAY = pix("play",2), PAUSE = pix("pause",2);
 function bubble(cls, voice, host){
@@ -784,6 +812,7 @@ function bubble(cls, voice, host){
   const pb = el("button","play"); pb.setAttribute("aria-label","Ouvir"); pb.innerHTML = PLAY;
   pb.onclick = () => speakText(speakable(t._raw || t.textContent), pb, cls === "me");
   b.append(t, pb); wrap.append(b); t._play = pb; t._wrap = wrap;
+  longPressCopy(b, t);
   (host || $("msgs")).append(wrap); if (!host) $("msgs").scrollTop = 1e9; return t;
 }
 function userSay(text, voice){ if (window.EA && EA.user()) EA.countMessage(); const t = bubble("me", voice); const ln = el("span","line"); namesText(ln, text); t.append(ln); t._raw = text; logMsg("u", text); rec("u", text, voice ? {v:1} : null); return t; }
