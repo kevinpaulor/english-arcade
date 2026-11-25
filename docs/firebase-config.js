@@ -14,5 +14,5 @@ export const ADMIN_UIDS = ["GDlCUy3WvYYXGasJxpFa6tWCm1S2"];
 export const AI_MODEL = "gemini-2.5-flash";
 export const AI_DAILY_LIMIT = 60;
 // Chave do site do reCAPTCHA (App Check / Fraud Defense). Deixe vazio até configurar.
-export const RECAPTCHA_KEY = "";
+export const RECAPTCHA_KEY = "6LdPmzIuAAAAAIcWtV4CU7YhMtP8g1dVsIZi3yJW";
 export const APP_VERSION = 1;
