@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#120a24">
+<title>Central ADM English Arcade</title>
+<link rel="icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;--bg:#120a24;--panel:#1b1036;--panel2:#24164a;--line:#3a2462;--pink:#ff3ea5;--green:#3ddc6b;--yellow:#ffd84a}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:#fff;font:20px/1.25 'VT323',ui-monospace,monospace;overflow-x:clip}
+button,input,select,textarea{font:inherit;color:inherit}
+.px{font-family:'Press Start 2P',ui-monospace,monospace}
+main{max-width:980px;margin:0 auto;padding:18px 16px 48px}
+h1{font-size:14px;line-height:1.6;margin:0 0 4px}
+h2{font-size:10px;margin:26px 0 10px}
+.sub{opacity:.7;margin:0 0 14px}
+.btn{min-height:40px;padding:0 12px;background:none;border:2px solid #fff;font-family:'Press Start 2P',monospace;font-size:8px;cursor:pointer}
+.btn.alt{border-color:var(--line)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(9em,1fr));gap:10px}
+.kpi{background:var(--panel);border:2px solid var(--line);padding:10px 12px}
+.kpi b{display:block;font-family:'Press Start 2P',monospace;font-size:18px;margin-top:6px}
+.kpi small{opacity:.7}
+.scroll{overflow-x:auto;border:2px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:18px}
+th,td{padding:7px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-family:'Press Start 2P',monospace;font-size:7px;opacity:.75;background:var(--panel)}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.dot{display:inline-block;width:10px;height:10px;margin-right:6px;background:#5a5070}
+.dot.on{background:var(--green);box-shadow:0 0 0 3px rgba(61,220,107,.25)}
+tr.click{cursor:pointer}
+tr.click:hover td{background:var(--panel)}
+.days{display:flex;gap:4px;align-items:flex-end;height:60px;padding:6px 0}
+.days i{flex:1;background:var(--pink);min-height:2px}
+.fb{background:var(--panel);border:2px solid var(--line);padding:12px;margin-bottom:10px}
+.fb .meta{opacity:.7;font-size:17px}
+.fb p{margin:6px 0 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.risk{border-left:4px solid var(--yellow);padding:4px 8px;margin:0 0 10px;font-size:18px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select,textarea{background:var(--bg);border:2px solid var(--line);padding:6px 8px}
+textarea{width:100%;min-height:64px}
+.rel{background:var(--panel);border:2px solid var(--line);padding:12px}
+.note{opacity:.75;font-size:18px;min-height:1.2em}
+.uid{overflow-wrap:anywhere;background:var(--panel2);padding:8px;border:2px dashed var(--yellow)}
+[hidden]{display:none!important}
+@media(max-width:600px){th,td{padding:6px 5px;font-size:16px}}
+</style>
+</head>
+<body>
+<main>
+  <div class="row" style="justify-content:space-between">
+    <div><h1 class="px">🛡 CENTRAL ADM</h1><p class="sub">English Arcade · uso, sugestões e versões</p></div>
+    <div class="row"><a class="btn alt" href="./" style="display:inline-flex;align-items:center;text-decoration:none">ABRIR O APP</a><button class="btn alt" id="out" hidden>SAIR</button></div>
+  </div>
+  <section id="gate">
+    <p class="note" id="gmsg">Carregando…</p>
+    <button class="btn" id="in" hidden>ENTRAR COM GOOGLE</button>
+    <div id="notadmin" hidden>
+      <p>Esta conta ainda não é administradora. Seu UID é:</p>
+      <p class="uid" id="myuid"></p>
+      <p class="note">Cole esse UID em <b>firebase-config.js</b> (ADMIN_UIDS) e no <b>firestore.rules</b> (no lugar de COLE_SEU_UID_AQUI), publique as regras e recarregue.</p>
+    </div>
+  </section>
+  <section id="panel" hidden>
+    <div class="kpis" id="kpis"></div>
+    <h2 class="px">USUÁRIOS</h2>
+    <div class="scroll"><table><thead><tr><th>NOME</th><th>VISTO</th><th>HOJE</th><th>TOTAL</th><th>VISITAS</th><th>MSGS</th><th>PONTOS</th></tr></thead><tbody id="users"></tbody></table></div>
+    <div id="detail" class="rel" hidden style="margin-top:10px"></div>
+    <h2 class="px">SUGESTÕES</h2>
+    <div id="fbs"></div>
+    <h2 class="px">VERSÕES</h2>
+    <div class="rel" id="rel"></div>
+  </section>
+</main>
+<script type="module" src="admin-backend.js"></script>
+<script>
+{
+const $ = id => document.getElementById(id);
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const dur = ms => { const m = Math.round((ms || 0) / 60000); return m < 60 ? m + " min" : Math.floor(m / 60) + "h" + String(m % 60).padStart(2, "0"); };
+const ago = t => { if (!t) return "—"; const s = (Date.now() - t) / 1000; if (s < 150) return "agora"; if (s < 3600) return Math.round(s / 60) + " min"; if (s < 86400) return Math.round(s / 3600) + " h"; return Math.round(s / 86400) + " d"; };
+const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+const RISK = [[/senha|password/i, "fala de senha"], [/cart[aã]o|cpf|pix|pagamento|banco/i, "fala de pagamento ou documento"], [/localiza|gps|c[aâ]mera|contatos/i, "pede acesso a localização, câmera ou contatos"], [/script|eval|<\s*\w+|html/i, "pede código ou HTML"], [/apagar|deletar|excluir/i, "pede para apagar dados"], [/admin|adm\b|permiss/i, "pede permissões de administrador"], [/enviar para|mandar para|api externa|outro site/i, "envia dados para fora"]];
+
+async function loadAll() {
+  const [users, fbs, rel] = await Promise.all([ADM.users(), ADM.feedback(), ADM.release()]);
+  const now = Date.now(), online = users.filter(u => now - u.lastSeen < 150000);
+  const active7 = users.filter(u => now - u.lastSeen < 7 * 86400000).length;
+  const total = users.reduce((n, u) => n + (u.totalMs || 0), 0);
+  const k = $("kpis"); k.textContent = "";
+  [["ONLINE AGORA", online.length], ["USUÁRIOS", users.length], ["ATIVOS EM 7 DIAS", active7], ["TEMPO TOTAL", dur(total)], ["SUGESTÕES NOVAS", fbs.filter(f => (f.status || "nova") === "nova").length]]
+    .forEach(([l, v]) => { const d = el("div", "kpi"); d.append(el("small", "px", l), el("b", null, String(v))); k.append(d); });
+  const tb = $("users"); tb.textContent = "";
+  users.forEach(u => {
+    const tr = el("tr", "click"), n = el("td"); const dot = el("span", "dot" + (now - u.lastSeen < 150000 ? " on" : ""));
+    n.append(dot, document.createTextNode((u.name || "sem nome") + (u.anon ? " (sem conta)" : "")));
+    const cells = [n, el("td", null, ago(u.lastSeen)), el("td", "num", "…"), el("td", "num", dur(u.totalMs)), el("td", "num", String(u.visits || 0)), el("td", "num", String(u.msgs || 0)), el("td", "num", String(u.score || 0))];
+    cells.forEach(c => tr.append(c));
+    tr.onclick = () => showUser(u);
+    tb.append(tr);
+    ADM.days(u.id).then(ds => { const t = ds.find(d => d.day === today()); cells[2].textContent = t ? dur(t.ms) : "0 min"; u._days = ds; }).catch(() => { cells[2].textContent = "—"; });
+  });
+  renderFb(fbs); renderRel(rel);
+}
+async function showUser(u) {
+  const d = $("detail"); d.hidden = false; d.textContent = "";
+  d.append(el("b", null, (u.name || "sem nome") + (u.email ? " · " + u.email : "")), el("p", "note", "Conta criada: " + (u.created || "—") + " · versão " + (u.version || "—")));
+  const ds = (u._days || await ADM.days(u.id)).slice().reverse();
+  const max = Math.max(1, ...ds.map(x => x.ms || 0)), bars = el("div", "days");
+  ds.forEach(x => { const i = el("i"); i.style.height = Math.max(3, 100 * (x.ms || 0) / max) + "%"; i.title = x.day + ": " + dur(x.ms) + " · " + (x.msgs || 0) + " msgs"; bars.append(i); });
+  d.append(el("p", "note", "Minutos por dia, últimos " + ds.length + " dias com uso"), bars);
+  d.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+function renderFb(list) {
+  const box = $("fbs"); box.textContent = "";
+  if (!list.length) { box.append(el("p", "note", "Nenhuma sugestão ainda.")); return; }
+  list.forEach(f => {
+    const c = el("div", "fb");
+    c.append(el("div", "meta", (f.name || "anônimo") + (f.email ? " · " + f.email : "") + " · " + (f.ts ? new Date(f.ts).toLocaleString("pt-BR") : "")), el("p", null, f.text || ""));
+    const risks = RISK.filter(([re]) => re.test(f.text || "")).map(([, m]) => m);
+    if (risks.length) c.append(el("div", "risk", "⚠ Atenção: " + risks.join(", ") + ". Confira antes de aplicar."));
+    const row = el("div", "row"), sel = el("select");
+    ["nova", "em análise", "feito", "recusado"].forEach(s => { const o = el("option", null, s); o.value = s; if ((f.status || "nova") === s) o.selected = true; sel.append(o); });
+    sel.setAttribute("aria-label", "Status");
+    const ta = el("textarea"); ta.value = f.reply || ""; ta.placeholder = "Resposta para o usuário"; ta.setAttribute("aria-label", "Resposta");
+    const save = el("button", "btn", "SALVAR"), copy = el("button", "btn alt", "📋 COPIAR PARA APLICAR"), note = el("span", "note");
+    save.onclick = async () => { try { await ADM.answer(f.id, sel.value, ta.value); note.textContent = "Salvo."; } catch (e) { note.textContent = "Erro ao salvar."; } };
+    copy.onclick = async () => { const t = "Sugestão de usuário do English Arcade para aplicar no app:\n\n" + f.text + (risks.length ? "\n\nAtenção: " + risks.join(", ") + "." : ""); try { await navigator.clipboard.writeText(t); note.textContent = "Copiado."; } catch (e) { note.textContent = "Não deu para copiar."; } };
+    row.append(sel, save, copy, note);
+    c.append(ta, row); box.append(c);
+  });
+}
+function renderRel(r) {
+  const box = $("rel"); box.textContent = "";
+  box.append(el("p", null, "Versão liberada para todos: v" + r.stable + (r.beta ? " · em teste: v" + r.beta : " · nenhuma em teste")));
+  if (r.notes[r.beta]) box.append(el("p", "note", "Novidades da v" + r.beta + ": " + r.notes[r.beta]));
+  const row = el("div", "row"), note = el("p", "note");
+  if (r.beta && r.beta !== r.stable) {
+    const t = el("a", "btn alt", "🧪 TESTAR v" + r.beta); t.href = "v/" + r.beta + "/"; t.style.cssText = "display:inline-flex;align-items:center;text-decoration:none"; row.append(t);
+    const ok = el("button", "btn", "✅ APROVAR PARA TODOS"); ok.onclick = async () => { await ADM.setStable(r.beta); note.textContent = "v" + r.beta + " liberada."; loadAll(); }; row.append(ok);
+  }
+  if (r.stable > 1) { const back = el("button", "btn alt", "↩ VOLTAR PARA v" + (r.stable - 1)); back.onclick = async () => { await ADM.setStable(r.stable - 1); note.textContent = "Voltou para v" + (r.stable - 1) + "."; loadAll(); }; row.append(back); }
+  box.append(row, note);
+}
+function boot() {
+  ADM.onAuth(u => {
+    $("in").hidden = !!u; $("out").hidden = !u; $("gmsg").textContent = u ? "" : "Entre com a conta Google do administrador.";
+    $("notadmin").hidden = !(u && !u.admin); if (u) $("myuid").textContent = u.uid;
+    $("panel").hidden = !(u && u.admin); $("gate").hidden = !!(u && u.admin);
+    if (u && u.admin) loadAll().catch(e => { $("gate").hidden = false; $("gmsg").textContent = "Não consegui ler os dados. Confira se as regras do Firestore foram publicadas com o seu UID."; console.warn(e); });
+  });
+  $("in").onclick = () => ADM.login().catch(e => { $("gmsg").textContent = "Não deu certo: " + (e && e.code || e); });
+  $("out").onclick = () => ADM.logout();
+  setInterval(() => { if (!$("panel").hidden) loadAll().catch(() => {}); }, 60000);
+}
+if (window.ADM) boot(); else window.addEventListener("adm-ready", boot, { once: true });
+}
+</script>
+</body>
+</html>

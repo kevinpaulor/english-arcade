@@ -1,0 +1,45 @@
+rules_version = '2';
+// English Arcade — regras do Firestore
+// Troque COLE_SEU_UID_AQUI pelo seu UID (aparece na central admin na primeira vez que você entra).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.uid in ['COLE_SEU_UID_AQUI']; }
+    function isMe(uid) { return signedIn() && request.auth.uid == uid; }
+
+    // Dados de uso que o admin pode ver: nome, email, online, tempo, pontos.
+    match /users/{uid} {
+      allow read: if isMe(uid) || isAdmin();
+      allow create, update: if isMe(uid) && request.resource.data.keys().hasOnly(['lastSeen','name','email','anon','version','totalMs','visits','created','score','drills','msgs']);
+      allow delete: if isAdmin();
+
+      // Minutos e mensagens por dia (admin vê, só a pessoa grava).
+      match /days/{day} {
+        allow read: if isMe(uid) || isAdmin();
+        allow write: if isMe(uid) && request.resource.data.keys().hasOnly(['ms','msgs','ai']);
+      }
+      // Perfil, estado e conversas: só a própria pessoa.
+      match /private/{docId} {
+        allow read, write: if isMe(uid);
+      }
+      match /chats/{chatId} {
+        allow read, write: if isMe(uid) && (request.resource == null || request.resource.data.size() < 60);
+      }
+    }
+
+    // Sugestões: qualquer pessoa logada envia; só o admin lê e responde; o autor lê as próprias.
+    match /feedback/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.text is string && request.resource.data.text.size() <= 1500
+        && request.resource.data.status == 'nova' && request.resource.data.reply == '';
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // Versão liberada para todos: leitura pública, escrita só do admin.
+    match /release/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

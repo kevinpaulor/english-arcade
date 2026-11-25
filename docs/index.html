@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#120a24">
+<title>English Arcade</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+html,body{height:100%;margin:0;background:#120a24;color:#fff;font:20px/1.3 ui-monospace,monospace}
+body{display:grid;place-items:center;text-align:center;padding:16px;box-sizing:border-box}
+p{opacity:.8}
+a{color:#fff}
+</style>
+</head>
+<body>
+<main>
+  <p id="m">Carregando o English Arcade…</p>
+  <noscript><p>Ative o JavaScript para usar o app.</p></noscript>
+</main>
+<script type="module">
+import { firebaseConfig } from "./firebase-config.js";
+const keep = location.search + location.hash;
+const go = n => { try { localStorage.setItem("ea-version", String(n)); } catch (e) {} location.replace("v/" + n + "/" + keep); };
+async function pick() {
+  try {
+    const url = "https://firestore.googleapis.com/v1/projects/" + firebaseConfig.projectId + "/databases/(default)/documents/release/current";
+    const r = await fetch(url, { cache: "no-store" });
+    if (r.ok) { const j = await r.json(); const n = +(j.fields && j.fields.stable && (j.fields.stable.integerValue || j.fields.stable.doubleValue)); if (n > 0) return go(n); }
+  } catch (e) {}
+  try { const saved = +localStorage.getItem("ea-version"); if (saved > 0) return go(saved); } catch (e) {}
+  try { const v = await (await fetch("versions.json", { cache: "no-store" })).json(); return go(v.default || 1); } catch (e) {}
+  go(1);
+}
+pick();
+setTimeout(() => { document.getElementById("m").innerHTML = 'Demorando mais que o normal. <a href="v/1/">Abrir o app</a>'; }, 6000);
+</script>
+</body>
+</html>

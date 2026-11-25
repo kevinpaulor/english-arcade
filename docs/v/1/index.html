@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#120a24">
+<link rel="manifest" href="../../manifest.webmanifest">
+<link rel="icon" href="../../icon-192.png">
+<link rel="apple-touch-icon" href="../../icon-192.png">
+<title>English Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+/* VOICE everyday study tool, played like a quiet arcade cabinet
+   IDEA the notebook is a cartridge: the chat is the game screen, days and topics are levels
+   PICTURE the chat itself, full screen, with pixel icons and lit keywords
+   COLOUR night violet ground, white ink, topic colours only on shadows, borders and keywords
+   TYPE Press Start 2P labels + VT323 text
+   LAYOUT header, tabs, one view at a time; chat input pinned at the bottom */
+:root{color-scheme:dark;--bg:#120a24;--panel:#1b1036;--panel2:#24164a;--line:#3a2462;--ink:#fff;--pink:#ff3ea5;--cyan:#29e6ff;--yellow:#ffd84a}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:21px/1.2 'VT323',ui-monospace,monospace;overflow:hidden}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.px{font-family:'Press Start 2P',ui-monospace,monospace}
+.app{height:100%;max-width:640px;margin:0 auto;display:flex;flex-direction:column;border-left:2px solid var(--line);border-right:2px solid var(--line)}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--panel)}
+.logo{font-size:11px;line-height:1.6}
+.icons{display:flex;gap:8px}
+.ibtn{width:40px;height:40px;display:grid;place-items:center;background:none;border:2px solid var(--line);padding:0}
+.ibtn[aria-pressed=true]{border-color:#fff}
+.tabs{display:flex;background:var(--panel);border-bottom:2px solid var(--line)}
+.tab{flex:1;min-height:42px;font-size:7px;background:none;border:none;border-bottom:3px solid transparent;opacity:.6;padding:6px 2px}
+.tab[aria-selected=true]{opacity:1;border-bottom-color:var(--pink)}
+main{flex:1;overflow-y:auto;padding:16px}
+main[hidden],.chat[hidden]{display:none}
+.lead{margin:0 0 14px;opacity:.8}
+/* calendar */
+.card{background:var(--panel);border:2px solid var(--line);padding:12px;margin-bottom:16px}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-head .px{font-size:10px}
+.nav{width:40px;height:34px;background:none;border:2px solid var(--line);font-size:9px}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:9px 8px;padding:0 6px 6px 0}
+.dow{font-size:7px;text-align:center;opacity:.6;padding:4px 0}
+.day{aspect-ratio:1;min-height:32px;border:2px solid transparent;background:#1e1732;font-size:19px;padding:0;display:grid;place-items:center;position:relative;opacity:.35}
+.day.on{background:var(--panel2);border-color:var(--line);opacity:1}
+.day.sel{border-color:#fff}
+.day.empty{background:none}
+.day:disabled{cursor:default}
+.go{display:flex;gap:8px;margin-top:12px}
+.go input{flex:1;height:42px;background:var(--bg);border:2px solid var(--line);padding:0 10px;font-size:21px}
+.gobtn{height:42px;padding:0 14px;background:none;border:2px solid #fff;font-size:9px}
+.note{font-size:17px;opacity:.8;margin:8px 0 0;min-height:1em}
+/* lesson pages */
+.dayhead{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 12px}
+.dayhead .px{font-size:11px}
+.dayhead small{opacity:.7;font-size:18px}
+.page{background:var(--panel);border:2px solid var(--line);padding:14px;margin-bottom:16px}
+.chip{display:inline-block;font-size:7px;line-height:1.5;padding:5px 7px;border:2px solid;background:none;margin-bottom:10px}
+.ptitle{font-size:12px;line-height:1.7;margin:0 0 4px}
+.psum{opacity:.7;margin:0 0 12px}
+.sec{font-size:7px;opacity:.6;margin:14px 0 6px}
+.phr{padding:5px 0;border-top:1px dashed var(--line)}
+.kw{background:none;border:none;padding:0;font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
+.gloss{display:block;font-size:18px;margin:4px 0 2px;padding:4px 8px;background:var(--panel2);border-left:3px solid}
+.voc{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:3px 12px}
+.voc b{font-weight:700}
+.voc em{font-style:normal;opacity:.75}
+.tip{margin-top:14px;padding:8px 10px;border:2px dashed var(--line)}
+.tip .px{font-size:7px;display:block;margin-bottom:4px;opacity:.7}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.act{min-height:38px;padding:0 10px;font-size:7px;background:none;border:2px solid var(--line)}
+.act.main{border-color:#fff}
+/* toc & notebook */
+.toc{display:grid;gap:8px}
+.conv[aria-pressed] small{display:block;margin-top:4px}
+.trow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--panel);border:2px solid var(--line);padding:10px 12px;min-height:54px}
+.trow i{flex:none;width:14px;height:14px;background:var(--panel2)}
+.trow b{display:block;font-weight:400}
+.trow small{opacity:.65;font-size:17px}
+.trow .px{margin-left:auto;font-size:8px;opacity:.7}
+.flip{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 14px}
+.flip .px{font-size:8px;opacity:.7}
+.fbtn{min-height:40px;padding:0 10px;font-size:8px;background:none;border:2px solid var(--line)}
+.fbtn:disabled{opacity:.3;cursor:default}
+/* me */
+.field{margin-bottom:12px}
+.field .px{font-size:8px;display:block;margin-bottom:8px;opacity:.8}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.pchip{display:inline-flex;align-items:center;gap:4px;background:var(--panel2);padding:2px 2px 2px 8px}
+.pchip button{width:28px;height:28px;background:none;border:none;font-size:20px}
+.add{display:flex;gap:8px}
+.add input{flex:1;height:42px;background:var(--bg);border:2px solid var(--line);padding:0 10px}
+.add button{height:42px;padding:0 12px;font-size:8px;background:none;border:2px solid #fff}
+.export pre{white-space:pre-wrap;overflow-wrap:anywhere;font:18px/1.2 'VT323',monospace;background:var(--panel);border:2px solid var(--line);padding:12px;max-height:50vh;overflow:auto;margin:0 0 12px}
+/* chat */
+.chat{flex:1;min-height:0;display:flex;flex-direction:column}
+.cbar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:2px solid var(--line)}
+.ctx{flex:1;background:none;border:none;text-align:left;padding:0;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctx i{display:inline-block;width:10px;height:10px;margin-right:8px;vertical-align:0}
+.levels{display:flex;gap:4px}
+.lv{min-height:32px;padding:0 7px;font-size:7px;background:none;border:2px solid transparent;opacity:.55}
+.lv[aria-checked=true]{opacity:1;border-color:#fff}
+.msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.m{max-width:90%;font-size:21px;line-height:1.2}
+.m.me{align-self:flex-end}
+.m.bot{align-self:flex-start}
+.bub{display:flex;gap:8px;align-items:flex-start;padding:9px 8px 9px 11px}
+.me .bub{background:#7a1450}
+.bot .bub{background:var(--panel)}
+.txt{flex:1;white-space:pre-line}
+.lab{font-family:'Press Start 2P',monospace;font-size:7px;display:block;margin:8px 0 4px;opacity:.7}
+.lab:first-child{margin-top:0}
+.ico{display:inline-block;vertical-align:-3px;margin-right:6px}
+.vtag{font-family:'Press Start 2P',monospace;font-size:6px;display:block;margin-bottom:5px;opacity:.75}
+.play{flex:none;width:30px;height:30px;display:grid;place-items:center;background:none;border:2px solid rgba(255,255,255,.35);padding:0}
+.play.on{border-color:#fff}
+.nospeak .play{display:none}
+.more{display:flex;gap:8px;margin-top:6px}
+.more button{min-height:32px;padding:0 8px;font-size:7px;background:none;border:2px solid var(--line)}
+.tut{background:var(--panel);border:2px solid var(--line);padding:14px;font-size:19px}
+.tut h2{font-size:10px;line-height:1.6;margin:0 0 8px;display:flex;align-items:center;gap:10px}
+.tut ol{margin:0 0 14px;padding-left:22px}
+.tut li{margin-bottom:4px}
+.tut .en{opacity:.7}
+.tut .en h2{font-size:9px}
+.inrow{display:flex;gap:8px;padding:10px 16px 14px;border-top:2px solid var(--line)}
+.inrow input{flex:1;height:46px;background:var(--panel);border:2px solid var(--line);padding:0 12px;font-size:21px}
+.send,.mic{width:50px;height:46px;background:none;border:2px solid #fff;display:grid;place-items:center;padding:0}
+.mic{border-color:var(--line)}
+.mic[hidden]{display:none}
+.mic.rec{border-color:var(--pink);background:#7a1450}
+.score{display:flex;align-items:center;gap:6px;font-size:10px;margin-left:auto;margin-right:4px;transition:transform .15s}
+.score.up{transform:scale(1.25)}
+.score.down{transform:translateX(-3px)}
+.pts{align-self:flex-start;font-family:'Press Start 2P',monospace;font-size:7px;margin-top:5px;padding:4px 6px;border:2px solid var(--line)}
+.pts.plus{border-color:#3ddc6b}
+.pts.minus{border-color:var(--pink)}
+.conv{display:block;width:100%;text-align:left;background:var(--panel);border:2px solid var(--line);padding:10px 12px;margin-bottom:8px}
+.conv b{display:block;font-weight:400;margin:4px 0}
+.conv small{opacity:.65;font-size:17px}
+.conv .px{font-size:7px;opacity:.75}
+.dgroup{font-size:8px;opacity:.6;margin:16px 0 8px}
+.tview{display:flex;flex-direction:column;gap:12px;margin:14px 0}
+.tview .m{max-width:94%}
+a.act{display:inline-flex;align-items:center;text-decoration:none;color:#fff}
+.mail{display:flex;gap:8px;margin:10px 0}
+.mail input{flex:1;height:42px;background:var(--bg);border:2px solid var(--line);padding:0 10px}
+.person{background:var(--panel);border:2px solid var(--line);margin-bottom:10px}
+.phead{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;text-align:left;padding:10px 12px;min-height:50px}
+.phead b{font-weight:700}
+.phead small{opacity:.65;font-size:17px;margin-left:6px}
+.phead .px{margin-left:auto;font-size:8px;opacity:.7}
+.swatch{flex:none;width:26px;height:26px;border:2px solid #fff;padding:0}
+.pbody{padding:0 12px 12px}
+.assoc{margin-top:10px}
+.assoc .px{font-size:7px;opacity:.7;display:block;margin-bottom:6px}
+.add.sm input,.add.sm button{height:38px}
+.facts{list-style:none;margin:0 0 10px;padding:0}
+.facts li{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px dashed var(--line)}
+.facts li span{flex:1}
+.facts li > button{width:28px;height:28px;background:none;border:none;font-size:20px}
+.pname{font-weight:700;background:none;border:none;padding:0}
+.mecard{box-shadow:4px 4px 0 #fff}
+.metag{font-family:'Press Start 2P',monospace;font-size:7px;padding:3px 5px;border:2px solid #fff;margin-left:8px}
+.one{display:flex;gap:8px;align-items:center;margin-top:10px}
+.one label{flex:none;font-family:'Press Start 2P',monospace;font-size:7px;opacity:.7;width:86px}
+.one input{flex:1;height:38px;background:var(--bg);border:2px solid var(--line);padding:0 10px}
+.login{position:fixed;inset:0;z-index:50;background:var(--bg);overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px}
+.login[hidden],.modal[hidden]{display:none}
+.lbox{width:100%;max-width:420px;margin:auto 0}
+.lbox h1{font-family:'Press Start 2P',monospace;font-size:16px;line-height:1.6;margin:0 0 6px}
+.lbox .sub{opacity:.75;margin:0 0 18px}
+.lbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:48px;margin-bottom:10px;background:none;border:2px solid var(--line);font-family:'Press Start 2P',monospace;font-size:9px}
+.lbtn.main{border-color:#fff;box-shadow:4px 4px 0 var(--pink)}
+.lfield{display:block;width:100%;height:46px;margin-bottom:8px;background:var(--panel);border:2px solid var(--line);padding:0 12px}
+.lrow{display:flex;gap:8px}
+.lrow .lbtn{flex:1}
+.lerr{min-height:1.2em;color:#fff;margin:6px 0 12px;font-size:18px}
+.lerr.bad{border-left:3px solid var(--pink);padding-left:8px}
+.sep{display:flex;align-items:center;gap:10px;opacity:.6;font-size:16px;margin:14px 0}
+.sep:before,.sep:after{content:"";flex:1;height:2px;background:var(--line)}
+.credits{opacity:.6;font-size:16px;text-align:center;margin:18px 0 4px}
+.credits a{color:#fff}
+.modal{position:fixed;inset:0;z-index:60;background:rgba(10,5,20,.85);overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px}
+.mbox{width:100%;max-width:460px;margin:auto 0;background:var(--panel);border:2px solid #fff;padding:16px}
+.mbox h2{font-family:'Press Start 2P',monospace;font-size:10px;line-height:1.6;margin:0 0 10px}
+.mbox h3{font-family:'Press Start 2P',monospace;font-size:8px;margin:14px 0 6px;opacity:.8}
+.mbox ol{margin:0;padding-left:22px}
+textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT323',monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+</style>
+</head>
+<body>
+<section class="login" id="login">
+  <div class="lbox">
+    <h1>ENGLISH ARCADE</h1>
+    <p class="sub">Seu caderno de inglês com professor no chat. Entre para salvar conversas, pontos e progresso.</p>
+    <button class="lbtn main" id="lgGoogle">ENTRAR COM GOOGLE</button>
+    <div class="sep">ou com email</div>
+    <label class="sr" for="lgEmail">Email</label><input class="lfield" id="lgEmail" type="email" autocomplete="email" placeholder="seu@email.com">
+    <label class="sr" for="lgPass">Senha</label><input class="lfield" id="lgPass" type="password" autocomplete="current-password" placeholder="senha (mínimo 6)">
+    <div class="lrow"><button class="lbtn" id="lgIn">ENTRAR</button><button class="lbtn" id="lgNew">CRIAR CONTA</button></div>
+    <div class="lrow"><button class="lbtn" id="lgLink">LINK NO EMAIL</button><button class="lbtn" id="lgReset">ESQUECI A SENHA</button></div>
+    <div class="sep">ou</div>
+    <button class="lbtn" id="lgAnon">USAR SEM CONTA</button>
+    <p class="lerr" id="lgErr" aria-live="polite"></p>
+    <button class="lbtn" id="lgInstall">📲 BAIXAR APP</button>
+    <p class="credits">Criado por Kevin Paulo · @Arkev.arq · <a href="../../politica.html">Privacidade</a></p>
+  </div>
+</section>
+<section class="modal" id="installModal" hidden role="dialog" aria-label="Como instalar">
+  <div class="mbox">
+    <h2>📲 INSTALAR O APP</h2>
+    <h3>ANDROID (CHROME)</h3><ol><li>Abra o link no Chrome.</li><li>Toque nos três pontinhos ⋮.</li><li>Toque em "Adicionar à tela inicial" ou "Instalar app".</li></ol>
+    <h3>IPHONE (SAFARI)</h3><ol><li>Abra o link no Safari.</li><li>Toque em Compartilhar (quadrado com seta).</li><li>Toque em "Adicionar à Tela de Início".</li></ol>
+    <h3>COMPUTADOR</h3><ol><li>No Chrome ou Edge, clique no ícone de instalar na barra de endereço.</li></ol>
+    <h3>DENTRO DO INSTAGRAM OU WHATSAPP</h3><ol><li>Toque nos três pontinhos e escolha "Abrir no navegador".</li><li>Depois siga os passos do seu aparelho.</li></ol>
+    <button class="lbtn main" id="installClose" style="margin-top:16px">FECHAR</button>
+  </div>
+</section>
+<div class="app">
+  <header>
+    <div class="logo px">ENGLISH ARCADE</div>
+    <div class="score px" id="score" aria-live="polite"></div>
+    <div class="icons">
+      <button class="ibtn" id="calBtn" aria-label="Abrir o calendário"></button>
+      <button class="ibtn" id="setBtn" aria-label="Configurações"></button>
+      <button class="ibtn" id="tutBtn" aria-label="Mostrar ou esconder o tutorial" aria-pressed="true"></button>
+    </div>
+  </header>
+  <nav class="tabs" role="tablist">
+    <button class="tab px" role="tab" id="t-chat">CHAT</button>
+    <button class="tab px" role="tab" id="t-day">CADERNO</button>
+    <button class="tab px" role="tab" id="t-toc">SUMÁRIO</button>
+    <button class="tab px" role="tab" id="t-diary">PESSOAL</button>
+    <button class="tab px" role="tab" id="t-me">EU</button>
+  </nav>
+  <main id="main" hidden></main>
+  <section class="chat" id="chat" aria-label="Chat">
+    <div class="cbar">
+      <button class="ctx" id="ctx" aria-label="Abrir a aula no caderno"></button>
+      <div class="levels" role="radiogroup" aria-label="Nível da resposta">
+        <button class="lv px" data-lv="simple" role="radio">FÁCIL</button>
+        <button class="lv px" data-lv="medium" role="radio">MÉDIO</button>
+        <button class="lv px" data-lv="native" role="radio">NATIVO</button>
+      </div>
+    </div>
+    <div class="msgs" id="msgs" aria-live="polite"></div>
+    <form class="inrow" id="form">
+      <label for="msg" class="sr">Mensagem</label>
+      <input id="msg" autocomplete="off" placeholder="Type in English…">
+      <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
+      <button class="send" id="sendBtn" aria-label="Enviar"></button>
+    </form>
+  </section>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
+<script type="module" src="backend.js"></script>
+<script src="lessons.js"></script>
+<script>
+{
+/* ---------- data ---------- */
+const T = window.TOPICS, P = window.PAGES;
+P.forEach((p, i) => p.i = i);
+const byDate = {};
+P.forEach(p => (byDate[p.d] = byDate[p.d] || []).push(p));
+const DATES = Object.keys(byDate).sort();
+const MONTHS = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+const LVNAME = {simple:"FÁCIL", medium:"MÉDIO", native:"NATIVO"};
+const PCOLORS = ["#ff3ea5","#29e6ff","#ffd84a","#3ddc6b","#ff8a3c","#b46bff","#ff6b6b","#5b8cff"];
+const DEFAULT_PROFILE = {people:[],jobs:[],objects:[],places:[],situations:[],facts:[]};
+function normPerson(x, i){
+  if (typeof x === "string"){ const m = x.match(/^([^(]+)(?:\((.*)\))?/); x = {name:(m ? m[1] : x).trim(), role:(m && m[2] ? m[2] : "").trim()}; }
+  return {name:x.name||"", role:x.role||"", job:x.job||"", color:x.color||PCOLORS[i % PCOLORS.length], places:x.places||[], objects:x.objects||[], actions:x.actions||[]};
+}
+function normProfile(pr){ pr = Object.assign({}, JSON.parse(JSON.stringify(DEFAULT_PROFILE)), pr||{}); pr.people = (pr.people||[]).map(normPerson).filter(p => p.name); pr.facts = pr.facts||[];
+  pr.me = Object.assign({name:"", job:"", city:"", foods:[], family:[], hobbies:[], shows:[], music:[], goals:[], other:[]}, pr.me||{});
+  return pr; }
+const ME_LISTS = [["foods","COMIDAS FAVORITAS","Ex: sushi, feijoada"],["family","PARENTES","Ex: mom Ana, brother Lucas"],["hobbies","HOBBIES","Ex: CrossFit, surfing"],["shows","FILMES & SÉRIES","Ex: Peaky Blinders"],["music","MÚSICAS & ARTISTAS","Ex: Freddie Mercury"],["goals","OBJETIVOS COM O INGLÊS","Ex: pass the TOEFL"],["other","OUTRAS COISAS SOBRE MIM","Ex: I have a cat named Yuki"]];
+
+/* ---------- storage ---------- */
+let KP = "ea:guest:";
+const load = (k, d) => { try { const v = localStorage.getItem(KP + k); return v ? JSON.parse(v) : d; } catch(e) { return d; } };
+const store = (k, v) => { try { localStorage.setItem(KP + k, JSON.stringify(v)); } catch(e) {} };
+
+const S = {view:"chat", ctx:"day", date:DATES[DATES.length-1], ym:null, cal:true, topic:null, tp:0,
+  profile:normProfile(load("ea-profile", null)), open:null, level:load("ea-level","medium"),
+  tut:load("ea-tut", true), voice:load("ea-voice","soft"), meOpen:true, seen:load("ea-seen", []), log:load("ea-log", []), drills:load("ea-drills", 0), score:load("ea-score", 0), sessions:load("ea-sessions", []), cur:null, conv:null,
+  drill:null, hist:[], busy:false};
+S.ym = S.date.slice(0,7);
+
+const $ = id => document.getElementById(id);
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+const fmt = d => d.slice(8,10) + "/" + d.slice(5,7) + "/" + d.slice(0,4);
+const short = d => d.slice(8,10) + "/" + d.slice(5,7);
+const pick = a => a[Math.floor(Math.random()*a.length)];
+let sample = null, db = null, uid = null, downloads = null, tts = null, dict = null, saveTimer = null, storeMode = "local";
+
+/* ---------- pixel icons (fixed data, safe as markup) ---------- */
+const PAL = {w:"#ffffff",y:"#ffd84a",p:"#ff3ea5",c:"#29e6ff",g:"#3ddc6b",o:"#ff8a3c",r:"#e0303a",b:"#2a4bd7",G:"#1fa34a",Y:"#ffd400",B:"#1e3fa8",v:"#b46bff"};
+const ICONS = {
+  plane:["...w....","...ww...","w..www..","wwwwwwww","w..www..","...ww...","...w....","........"],
+  food:["..oooo..",".oooooo.","........","gggggggg","rrrrrrrr","........",".oooooo.","..oooo.."],
+  film:["w.w.w.w.",".w.w.w.w","cccccccc","c......c","c.cc...c","c.ccc..c","c.cc...c","cccccccc"],
+  book:[".pppppp.","pwwwwwwp","pwppppwp","pwwwwwwp","pwppppwp","pwwwwwwp",".pppppp.","........"],
+  star:["...yy...","...yy...","yyyyyyyy",".yyyyyy.","..yyyy..",".yy..yy.","yy....yy","........"],
+  bulb:["..yyyy..",".yyyyyy.",".yywwyy.",".yyyyyy.","..yyyy..","..wwww..","..wwww..","...ww..."],
+  chat:["cccccccc","c......c","c.w.w.wc","c......c","cccccccc","..cc....",".c......","........"],
+  heart:[".pp..pp.","pppppppp","pppppppp","pppppppp",".pppppp.","..pppp..","...pp...","........"],
+  house:["...oo...","..oooo..",".oooooo.","oooooooo",".wwwwww.",".ww..ww.",".ww..ww.",".wwwwww."],
+  clock:["..cccc..",".c....c.","c...w..c","c...w..c","c...ww.c",".c....c.","..cccc..","........"],
+  check:["........",".......g","......gg","g....gg.","gg..gg..",".gggg...","..gg....","........"],
+  cal:["wwwwwwww","cccccccc","cccccccc","w......w","w.p..w.w","w......w","w.w..w.w","wwwwwwww"],
+  down:["...ww...","...ww...","...ww...","wwwwwwww",".wwwwww.","..wwww..","...ww...","wwwwwwww"],
+  gear:["...ww...",".w.ww.w.","..wwww..","wwww.www","www.wwww","..wwww..",".w.ww.w.","...ww..."],
+  help:["..wwww..",".ww..ww.",".....ww.","....ww..","...ww...","...ww...","........","...ww..."],
+  mic:["...ww...","..wwww..","..wwww..","..wwww..","w.wwww.w",".wwwwww.","...ww...","..wwww.."],
+  send:["ww......","wwww....","wwwwww..","wwwwwwww","wwwwww..","wwww....","ww......","........"],
+  play:["w.......","www.....","wwwww...","wwwwwww.","wwwww...","www.....","w.......","........"],
+  br:["GGGGGGGGGGGG","GGGGGYYGGGGG","GGGYYYBBYGGG","GYYYBBBBBYYG","GYYYBBBBBYYG","GGGYYYBBYGGG","GGGGGYYGGGGG","GGGGGGGGGGGG"],
+  us:["bbbbbrrrrrrr","bwbwbwwwwwww","bbbbbrrrrrrr","bwbwbwwwwwww","rrrrrrrrrrrr","wwwwwwwwwwww","rrrrrrrrrrrr","wwwwwwwwwwww"]
+};
+function pix(name, cell){
+  const g = ICONS[name]; if (!g) return "";
+  const w = g[0].length, h = g.length; cell = cell || 2;
+  let r = "";
+  g.forEach((row,y) => [...row].forEach((ch,x) => { if (PAL[ch]) r += '<rect x="'+x+'" y="'+y+'" width="1.02" height="1.02" fill="'+PAL[ch]+'"/>'; }));
+  return '<svg class="ico" width="'+(w*cell)+'" height="'+(h*cell)+'" viewBox="0 0 '+w+' '+h+'" shape-rendering="crispEdges" aria-hidden="true">'+r+'</svg>';
+}
+const pixEl = (name, cell) => { const s = el("span"); s.innerHTML = pix(name, cell); return s.firstChild; };
+$("calBtn").innerHTML = pix("cal",3); $("setBtn").innerHTML = pix("gear",3); $("tutBtn").innerHTML = pix("help",3);
+$("mic").innerHTML = pix("mic",3); $("sendBtn").innerHTML = pix("send",3);
+
+/* ---------- helpers ---------- */
+const topicPages = k => P.filter(p => p.k === k);
+const ctxPages = () => S.ctx === "nb" ? [topicPages(S.topic)[S.tp]] : (byDate[S.date] || []);
+const ctxColor = () => T[ctxPages()[0].k].c;
+const ctxLabel = () => S.ctx === "nb" ? T[S.topic].n : "Aula de " + fmt(S.date);
+function people(){ return S.profile.people.map(p => p.name); }
+function personInfo(p){ const parts = []; if (p.role) parts.push(p.role); if (p.job) parts.push("profissão: " + p.job); if (p.places.length) parts.push("lugares: " + p.places.join(", ")); if (p.objects.length) parts.push("objetos: " + p.objects.join(", ")); if (p.actions.length) parts.push("ações: " + p.actions.join(", ")); const facts = S.profile.facts.filter(f => f.toLowerCase().includes(p.name.toLowerCase())); if (facts.length) parts.push(facts.join(" · ")); return p.name + (parts.length ? " — " + parts.join(" · ") : ""); }
+function worldText(){
+  const pr = S.profile;
+  const me = pr.me;
+  return "ABOUT HIMSELF: name " + me.name + (me.job ? "; job: " + me.job : "") + (me.city ? "; city: " + me.city : "") + ME_LISTS.map(([k]) => me[k].length ? "; " + k + ": " + me[k].join(", ") : "").join("") + ".\n" +
+    "people: " + (pr.people.map(p => p.name + (p.role ? " (" + p.role + ")" : "") + (p.job ? "; job: " + p.job : "") + (p.places.length ? "; places: " + p.places.join(", ") : "") + (p.objects.length ? "; objects: " + p.objects.join(", ") : "") + (p.actions.length ? "; actions: " + p.actions.join(", ") : "")).join(" | ") || "none") +
+    ". jobs: " + (pr.jobs.join(", ")||"none") + ". objects: " + (pr.objects.join(", ")||"none") + ". places: " + (pr.places.join(", ")||"none") + ". situations: " + (pr.situations.join(", ")||"none") + "." +
+    (pr.facts.length ? "\nTHINGS KEVIN TOLD YOU (remember and use them): " + pr.facts.join(" / ") : "");
+}
+function namesText(parent, str){
+  const ps = S.profile.people.filter(p => p.name.length > 1);
+  if (!ps.length){ parent.append(document.createTextNode(str)); return; }
+  const re = new RegExp("\\b(" + ps.map(p => p.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|") + ")\\b", "gi");
+  let last = 0, m;
+  while ((m = re.exec(str))){
+    parent.append(document.createTextNode(str.slice(last, m.index)));
+    const p = ps.find(q => q.name.toLowerCase() === m[0].toLowerCase());
+    const b = kwButton(m[0], personInfo(p), p.color); b.classList.add("pname"); b.style.textDecoration = "none"; parent.append(b);
+    last = re.lastIndex;
+  }
+  parent.append(document.createTextNode(str.slice(last)));
+}
+function markSeen(d){ if (!S.seen.includes(d)){ S.seen.push(d); store("ea-seen", S.seen); } }
+function logMsg(r, t){ S.log.push({r, t, c:ctxLabel(), ts:Date.now()}); S.log = S.log.slice(-120); store("ea-log", S.log); }
+function rec(r, t, extra){
+  if (!S.cur){ if (r !== "u" && r !== "d") return; S.cur = {id:Date.now().toString(36), start:Date.now(), upd:Date.now(), ctx:ctxLabel(), msgs:[], pts:0}; S.sessions.unshift(S.cur); }
+  S.cur.msgs.push(Object.assign({r, t}, extra||{})); S.cur.msgs = S.cur.msgs.slice(-200);
+  S.cur.upd = Date.now(); S.cur.ctx = ctxLabel(); persist();
+}
+let cloudTimer = null;
+function persist(){
+  S.sessions.sort((a,b) => b.upd - a.upd); S.sessions = S.sessions.slice(0,60);
+  store("ea-sessions", S.sessions); store("ea-score", S.score);
+  if (window.EA && EA.user()){ clearTimeout(cloudTimer); const cur = S.cur; cloudTimer = setTimeout(async () => {
+    try { await EA.saveState(stateObj()); if (cur) await EA.saveSession(cur); } catch(e) { console.warn(e); }
+  }, 1200); }
+}
+const POINTS = {simple:[1,1], medium:[3,1], native:[5,2]};
+function showScore(dir){ const sc = $("score"); sc.innerHTML = pix("star",2); sc.append(document.createTextNode(String(S.score))); if (dir){ sc.classList.add(dir); setTimeout(() => sc.classList.remove(dir), 220); } }
+function addScore(ok, wrap){
+  const [win, lose] = POINTS[S.level]; const d = ok ? win : -Math.min(lose, S.score);
+  S.score = Math.max(0, S.score + (ok ? win : -lose)); if (S.cur) S.cur.pts += d;
+  showScore(ok ? "up" : "down"); persist();
+  if (wrap){ const b = el("span","pts " + (ok ? "plus" : "minus"), (ok ? "+" + win : "−" + lose) + " PTS"); wrap.append(b); return {pts: ok ? win : -lose}; }
+  return {pts: ok ? win : -lose};
+}
+
+/* keyword: vocabulary term that appears in a phrase */
+function terms(p){
+  const out = [];
+  (p.v||[]).forEach(([a,b]) => a.split(/\s*[\/–]\s*/).forEach(t => { t = t.replace(/\(.*?\)|\.\.\./g,"").trim(); if (t.length > 2) out.push([t,b,a]); }));
+  return out.sort((x,y) => y[0].length - x[0].length);
+}
+function phraseNode(text, list, color, budget){
+  const span = el("span");
+  if (budget.n > 0){
+    for (const [t,b,a] of list){
+      const re = new RegExp("\\b" + t.replace(/[.*+?^${}()|[\]\\]/g,"\\$&") + "\\b","i");
+      const m = text.match(re);
+      if (m){
+        budget.n--;
+        span.append(document.createTextNode(text.slice(0,m.index)));
+        span.append(kwButton(m[0], a + " — " + b, color));
+        span.append(document.createTextNode(text.slice(m.index + m[0].length)));
+        return span;
+      }
+    }
+  }
+  span.textContent = text; return span;
+}
+function kwButton(word, info, color){
+  const b = el("button","kw",word); b.style.color = color; b.style.textDecorationColor = color;
+  b.setAttribute("aria-expanded","false");
+  b.onclick = () => {
+    let g = b._gloss;
+    if (g){ g.remove(); b._gloss = null; b.setAttribute("aria-expanded","false"); return; }
+    g = el("span","gloss",info); g.style.borderColor = color; b._gloss = g; b.setAttribute("aria-expanded","true");
+    const line = b.closest(".line"); if (line) line.after(g); else (b.closest(".phr") || b.parentNode).append(g);
+  };
+  return b;
+}
+
+/* ---------- views ---------- */
+function renderPage(p, showDate){
+  const t = T[p.k], box = el("article","page");
+  box.style.boxShadow = "4px 4px 0 " + t.c;
+  const chip = el("button","chip px", (showDate ? short(p.d) + " · " : "") + t.n.toUpperCase());
+  chip.style.borderColor = t.c; chip.onclick = () => openTopic(p.k, p.i);
+  box.append(chip, el("h2","ptitle px",p.t), el("p","psum",p.s));
+  box.append(el("div","sec px","FRASES"));
+  const list = terms(p), budget = {n:4};
+  p.f.forEach(f => { const r = el("div","phr"); r.append(phraseNode(f, list, t.c, budget)); box.append(r); });
+  if (p.v && p.v.length){
+    box.append(el("div","sec px","VOCABULÁRIO"));
+    const g = el("div","voc"); p.v.forEach(([a,b]) => g.append(el("b",null,a), el("em",null,b))); box.append(g);
+  }
+  if (p.g){ const tip = el("div","tip"); tip.append(el("span","px","DICA"), el("span",null,p.g)); box.append(tip); }
+  const acts = el("div","acts");
+  const talk = el("button","act main px","CONVERSAR ►");
+  talk.onclick = () => { S.view = "chat"; render(); botSay("Let's talk about \"" + p.t + "\". Ask me anything!", {icon:"chat"}); $("msg").focus(); };
+  acts.append(talk);
+  [["PERGUNTA","q"],["NEGATIVA","n"],["OUTRO SUJEITO","s"]].forEach(([l,k]) => { const b = el("button","act px",l); b.onclick = () => drill(p, k); acts.append(b); });
+  box.append(acts); return box;
+}
+
+function renderCal(m){
+  const card = el("section","card");
+  const [y, mo] = S.ym.split("-").map(Number);
+  const head = el("div","cal-head");
+  const prev = el("button","nav px","◀"), next = el("button","nav px","▶");
+  prev.setAttribute("aria-label","Mês anterior"); next.setAttribute("aria-label","Próximo mês");
+  const shift = n => { const d = new Date(y, mo-1+n, 1); S.ym = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); render(); };
+  prev.onclick = () => shift(-1); next.onclick = () => shift(1);
+  head.append(prev, el("span","px",MONTHS[mo-1]+" "+y), next); card.append(head);
+  const g = el("div","grid");
+  ["D","S","T","Q","Q","S","S"].forEach(d => g.append(el("div","dow px",d)));
+  const first = new Date(y, mo-1, 1).getDay(), days = new Date(y, mo, 0).getDate();
+  for (let i=0;i<first;i++) g.append(el("div","day empty"));
+  for (let d=1; d<=days; d++){
+    const key = S.ym + "-" + String(d).padStart(2,"0"), ps = byDate[key];
+    const b = el("button","day",String(d));
+    if (ps){
+      const cols = [...new Set(ps.map(p => T[p.k].c))];
+      b.classList.add("on");
+      b.style.boxShadow = cols.map((c,i) => (3*(i+1)) + "px " + (3*(i+1)) + "px 0 " + c).join(",");
+      b.setAttribute("aria-label", d + ": " + ps.map(p=>p.t).join("; "));
+      b.onclick = () => { S.date = key; S.ctx = "day"; render(); };
+    } else { b.disabled = true; b.setAttribute("aria-label", d + ": sem anotação"); }
+    if (key === S.date) b.classList.add("sel");
+    g.append(b);
+  }
+  card.append(g);
+  const go = el("form","go");
+  const inp = el("input"); inp.id = "dateIn"; inp.placeholder = "dd/mm/aaaa"; inp.inputMode = "numeric"; inp.setAttribute("aria-label","Digite uma data");
+  go.append(inp, el("button","gobtn px","IR"));
+  go.onsubmit = e => { e.preventDefault(); goDate(inp.value, false); };
+  card.append(go, Object.assign(el("p","note"), {id:"goMsg"}));
+  m.append(card);
+}
+
+function renderDay(m){
+  if (S.cal) renderCal(m);
+  const ps = byDate[S.date] || []; markSeen(S.date);
+  const h = el("div","dayhead");
+  h.append(el("span","px","AULA " + fmt(S.date)), el("small",null, ps.length + (ps.length===1?" página":" páginas")));
+  m.append(h);
+  ps.forEach(p => m.append(renderPage(p,false)));
+}
+
+function renderToc(m){
+  m.append(el("p","lead","Cada assunto é um caderno. Toque para folhear."));
+  const box = el("div","toc");
+  Object.keys(T).forEach(k => {
+    const ps = topicPages(k); if (!ps.length) return;
+    const b = el("button","trow"), i = el("i"); i.style.boxShadow = "3px 3px 0 " + T[k].c;
+    const tx = el("span"); tx.append(el("b",null,T[k].n), el("small",null, short(ps[0].d) + " → " + short(ps[ps.length-1].d)));
+    b.append(i, tx, el("span","px", ps.length + " PÁG"));
+    b.onclick = () => openTopic(k, ps[0].i);
+    box.append(b);
+  });
+  m.append(box);
+}
+
+function renderNotebook(m){
+  const ps = topicPages(S.topic);
+  const back = el("button","fbtn px","◀ SUMÁRIO"); back.onclick = () => { S.view = "toc"; render(); };
+  m.append(back, el("div"));
+  const fl = el("div","flip"); fl.style.marginTop = "14px";
+  const a = el("button","fbtn px","◀"), b = el("button","fbtn px","▶");
+  a.setAttribute("aria-label","Página anterior"); b.setAttribute("aria-label","Próxima página");
+  a.disabled = S.tp === 0; b.disabled = S.tp === ps.length-1;
+  a.onclick = () => { S.tp--; render(); }; b.onclick = () => { S.tp++; render(); };
+  fl.append(a, el("span","px","PÁG " + (S.tp+1) + " / " + ps.length), b);
+  markSeen(ps[S.tp].d);
+  m.append(fl, renderPage(ps[S.tp], true));
+}
+
+const FIELDS = [["jobs","PROFISSÕES","Ex: architect"],["objects","OBJETOS","Ex: surfboard"],["places","LUGARES","Ex: Barra da Tijuca"],["situations","SITUAÇÕES","Ex: client meeting"]];
+function chipList(arr, label){
+  const cs = el("div","chips");
+  arr.forEach((v,i) => { const c = el("span","pchip"); c.append(el("span",null,v)); const x = el("button",null,"×"); x.setAttribute("aria-label","Remover "+v); x.onclick = () => { arr.splice(i,1); saveProfile(); render(); }; c.append(x); cs.append(c); });
+  return cs;
+}
+function addForm(arr, id, ph, small){
+  const add = el("form","add" + (small ? " sm" : "")), inp = el("input"); inp.id = id; inp.placeholder = ph; inp.setAttribute("aria-label", ph);
+  add.append(inp, el("button","px","ADD"));
+  add.onsubmit = e => { e.preventDefault(); const v = inp.value.trim(); if (!v) return; arr.push(v); saveProfile(); render(); setTimeout(()=>{ const n=$(id); n&&n.focus(); },0); };
+  return add;
+}
+function oneField(label, value, ph, set, id){
+  const w = el("div","one"), l = el("label",null,label), i = el("input"); i.id = id; l.htmlFor = id; i.value = value || ""; i.placeholder = ph;
+  i.onchange = () => { set(i.value.trim()); saveProfile(); render(); };
+  w.append(l, i); return w;
+}
+function renderMe(m){
+  m.append(el("p","lead","O chat usa você, as suas pessoas e a sua memória livre nos exemplos e desafios."));
+  const me = S.profile.me, mc = el("div","person mecard");
+  const mh = el("button","phead"); mh.append(el("b",null,me.name || "Eu"), el("span","metag","EU"), el("span","px", S.meOpen ? "▲" : "▼"));
+  mh.setAttribute("aria-expanded", String(!!S.meOpen));
+  mh.onclick = () => { S.meOpen = !S.meOpen; render(); };
+  mc.append(mh);
+  if (S.meOpen){
+    const body = el("div","pbody");
+    body.append(oneField("NOME", me.name, "Seu nome", v => { me.name = v || "Eu"; }, "me-name"));
+    body.append(oneField("PROFISSÃO", me.job, "Ex: architect", v => { me.job = v; }, "me-job"));
+    body.append(oneField("CIDADE", me.city, "Ex: Rio de Janeiro", v => { me.city = v; }, "me-city"));
+    ME_LISTS.forEach(([k,l,ph]) => { const a = el("div","assoc"); a.append(el("span","px",l), chipList(me[k]), addForm(me[k], "me-"+k, ph, true)); body.append(a); });
+    mc.append(body);
+  }
+  m.append(mc);
+  /* people */
+  const ps = el("section","field"); ps.append(el("span","px","PESSOAS"));
+  S.profile.people.forEach((p,i) => {
+    const card = el("div","person"); card.style.boxShadow = "4px 4px 0 " + p.color;
+    const head = el("div","phead");
+    const sw = el("button","swatch"); sw.style.background = p.color; sw.setAttribute("aria-label","Trocar a cor de " + p.name);
+    sw.onclick = () => { p.color = PCOLORS[(PCOLORS.indexOf(p.color) + 1) % PCOLORS.length]; saveProfile(); render(); };
+    const nm = el("button","phead"); nm.style.padding = "0"; nm.style.minHeight = "0";
+    const b = el("b",null,p.name); b.style.color = p.color; nm.append(b);
+    const sub = [p.role, p.job].filter(Boolean).join(" · "); if (sub) nm.append(el("small",null,sub));
+    const n = p.places.length + p.objects.length + p.actions.length;
+    nm.append(el("span","px", S.open === i ? "▲" : (n ? n + " ▼" : "▼")));
+    nm.setAttribute("aria-expanded", String(S.open === i));
+    nm.onclick = () => { S.open = S.open === i ? null : i; render(); };
+    head.append(sw, nm); card.append(head);
+    if (S.open === i){
+      const body = el("div","pbody");
+      body.append(oneField("PROFISSÃO", p.job, "Ex: nurse", v => { p.job = v; }, "p"+i+"-job"));
+      body.append(oneField("QUEM É", p.role, "Ex: fiancée", v => { p.role = v; }, "p"+i+"-role"));
+      [["places","LUGARES","Ex: Barra, the office"],["objects","OBJETOS","Ex: guitar, laptop"],["actions","AÇÕES","Ex: cooks pasta, runs every morning"]].forEach(([k,l,ph]) => {
+        const a = el("div","assoc"); a.append(el("span","px",l), chipList(p[k]), addForm(p[k], "p"+i+"-"+k, ph, true)); body.append(a);
+      });
+      const del = el("button","act px","REMOVER PESSOA");
+      del.onclick = () => { if (del.dataset.c){ S.profile.people.splice(i,1); S.open = null; saveProfile(); render(); } else { del.dataset.c = "1"; del.textContent = "CONFIRMAR"; } };
+      body.append(del); card.append(body);
+    }
+    ps.append(card);
+  });
+  const addP = el("form","add"), pin = el("input"); pin.id = "add-person"; pin.placeholder = "Nome (quem é) · Ex: Ana (fiancée)"; pin.setAttribute("aria-label","Adicionar pessoa");
+  addP.append(pin, el("button","px","ADD"));
+  addP.onsubmit = e => { e.preventDefault(); const v = pin.value.trim(); if (!v) return; S.profile.people.push(normPerson(v, S.profile.people.length)); S.open = S.profile.people.length - 1; saveProfile(); render(); };
+  ps.append(addP); m.append(ps);
+  /* free memory */
+  const mem = el("section","field card"); mem.append(el("span","px","MEMÓRIA LIVRE"));
+  mem.append(el("p","note","Escreva uma frase ligando pessoas, lugares e ações. Eu guardo e uso nas conversas."));
+  const ul = el("ul","facts");
+  S.profile.facts.forEach((f,i) => { const li = el("li"), sp = el("span"); namesText(sp, f); const x = el("button",null,"×"); x.setAttribute("aria-label","Apagar esta lembrança"); x.onclick = () => { S.profile.facts.splice(i,1); saveProfile(); render(); }; li.append(sp, x); ul.append(li); });
+  mem.append(ul, addForm(S.profile.facts, "add-fact", "Ex: Ana adora sushi e trabalha num hospital em Botafogo."));
+  m.append(mem);
+  /* other lists */
+  FIELDS.forEach(([k,l,ph]) => { const f = el("section","field card"); f.append(el("span","px",l), chipList(S.profile[k]), addForm(S.profile[k], "add-"+k, ph)); m.append(f); });
+  const ex = el("button","act main px","EXPORTAR MEU PROGRESSO"); ex.onclick = () => { S.view = "export"; render(); };
+  m.append(ex, el("p","note", window.EA && EA.user() && !EA.user().anon ? "Salvo na sua conta." : "Salvo neste aparelho. Para não perder, salve sua conta em CONFIGURAÇÕES."));
+}
+
+const fmtTs = ts => { const d = new Date(ts); return String(d.getDate()).padStart(2,"0") + "/" + String(d.getMonth()+1).padStart(2,"0") + "/" + d.getFullYear() + " · " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); };
+const plain = t => String(t).replace(/^\s*(SCORE)\s*:.*$/gim,"").replace(/\[\[(.+?)\|.+?\]\]/g,"$1").replace(/\{\w+\}\s*/g,"").replace(/^\s*FIX\s*:/gim,"Correção:").replace(/^\s*REPLY\s*:\s*/gim,"").replace(/^\s*YOUR TURN\s*:/gim,"Sua vez:").replace(/\n{2,}/g,"\n").trim();
+function renderDiary(m){
+  const list = S.sessions.filter(x => x.msgs.some(q => q.r === "u"));
+  m.append(el("p","lead","Seu caderno pessoal: todas as conversas ficam guardadas. Abra para reler ou continuar de onde parou."));
+  if (!list.length){ m.append(el("p","note","Nenhuma conversa ainda. Mande uma mensagem no CHAT para começar.")); return; }
+  let lastDay = "";
+  list.forEach(x => {
+    const day = fmtTs(x.start).split(" · ")[0];
+    if (day !== lastDay){ m.append(el("div","dgroup px",day)); lastDay = day; }
+    const b = el("button","conv"), first = x.msgs.find(q => q.r === "u");
+    const n = x.msgs.filter(q => q.r === "u").length;
+    b.append(el("span","px", fmtTs(x.start).split(" · ")[1] + " · " + x.ctx.toUpperCase()), el("b",null,"“" + first.t.slice(0,90) + "”"), el("small",null, n + (n === 1 ? " mensagem" : " mensagens") + " · " + (x.pts >= 0 ? "+" : "") + x.pts + " pts"));
+    b.onclick = () => { S.conv = x.id; S.view = "conv"; render(); };
+    m.append(b);
+  });
+}
+function replay(msgs, host){
+  msgs.forEach(q => {
+    if (q.r === "u"){ const t = bubble("me", q.v, host); t.append(document.createTextNode(q.t)); t._raw = q.t; }
+    else if (q.r === "a"){ const t = bubble("bot", false, host); paint(t, q.t); }
+    else { const t = bubble("bot", false, host); const ic = q.t.match(/^\{(\w+)\}\s*/); if (ic){ t.append(pixEl(ic[1],2)); } const tx = ic ? q.t.slice(ic[0].length) : q.t; t.append(document.createTextNode(tx)); t._raw = tx; }
+    if (q.pts){ const w = (host || $("msgs")).lastChild; w.append(el("span","pts " + (q.pts > 0 ? "plus" : "minus"), (q.pts > 0 ? "+" + q.pts : "−" + (-q.pts)) + " PTS")); }
+  });
+}
+function renderConv(m){
+  const x = S.sessions.find(q => q.id === S.conv); if (!x){ S.view = "diary"; renderDiary(m); return; }
+  const back = el("button","fbtn px","◀ PESSOAL"); back.onclick = () => { S.view = "diary"; render(); };
+  m.append(back, el("div","dgroup px", fmtTs(x.start) + " · " + x.ctx.toUpperCase()));
+  const tv = el("div","tview"); m.append(tv); replay(x.msgs, tv);
+  const acts = el("div","acts");
+  const cont = el("button","act main px","CONTINUAR CONVERSA ►");
+  cont.onclick = () => {
+    S.cur = x; S.hist = x.msgs.filter(q => q.r === "u" || q.r === "a").slice(-8).map(q => ({r: q.r, t: q.t}));
+    [...$("msgs").querySelectorAll(".m, .more")].forEach(n => n.remove());
+    replay(x.msgs); S.view = "chat"; render();
+    botSay("Welcome back! Let's pick up where we left off.", {icon:"chat"});
+  };
+  const del = el("button","act px","APAGAR");
+  del.onclick = () => {
+    if (del.dataset.c){ S.sessions = S.sessions.filter(q => q !== x); if (S.cur === x) S.cur = null; persist(); if (window.EA && EA.user()) EA.deleteSession(x.id).catch(()=>{}); S.view = "diary"; render(); }
+    else { del.dataset.c = "1"; del.textContent = "CONFIRMAR APAGAR"; }
+  };
+  acts.append(cont, del); m.append(acts);
+}
+
+function summary(){
+  const now = new Date(), L = [];
+  const fmtNow = String(now.getDate()).padStart(2,"0") + "/" + String(now.getMonth()+1).padStart(2,"0") + "/" + now.getFullYear();
+  L.push("ENGLISH ARCADE — RESUMO DE ESTUDOS", "Gerado em " + fmtNow + " · nível do chat: " + LVNAME[S.level], "");
+  const mine = S.log.filter(x => x.r === "u");
+  const convs = S.sessions.filter(x => x.msgs.some(q => q.r === "u"));
+  L.push("PONTUAÇÃO: " + S.score + " pts", "");
+  L.push("PROGRESSO", "- Conversas salvas: " + convs.length, "- Caderno: " + P.length + " páginas em " + DATES.length + " aulas (" + fmt(DATES[0]) + " a " + fmt(DATES[DATES.length-1]) + ")", "- Aulas abertas no app: " + S.seen.length, "- Mensagens enviadas no chat: " + mine.length, "- Treinos feitos: " + S.drills, "");
+  L.push("ASSUNTOS");
+  Object.keys(T).forEach(k => { const ps = topicPages(k); if (ps.length) L.push("- " + T[k].n + ": " + ps.length + " páginas (" + short(ps[0].d) + " a " + short(ps[ps.length-1].d) + ")"); });
+  L.push("");
+  const fixes = S.log.filter(x => x.r === "a").map(x => (x.t.split("\n").find(l => /^\s*FIX\s*:/i.test(l)) || "").replace(/^\s*FIX\s*:\s*/i,"")).filter(Boolean);
+  if (fixes.length){ L.push("CORREÇÕES QUE RECEBI"); fixes.slice(-20).forEach(f => L.push("- " + f.replace(/\[\[(.+?)\|.+?\]\]/g,"$1"))); L.push(""); }
+  if (convs.length){ L.push("ÚLTIMAS CONVERSAS"); convs.slice(0,8).forEach(x => L.push("- " + fmtTs(x.start) + " · " + x.ctx + " · " + x.msgs.filter(q=>q.r==="u").length + " mensagens · " + (x.pts>=0?"+":"") + x.pts + " pts")); L.push(""); }
+  if (mine.length){ L.push("O QUE PERGUNTEI RECENTEMENTE"); mine.slice(-15).forEach(x => L.push("- " + x.t + "  (" + x.c + ")")); L.push(""); }
+  const seen = [...S.seen].sort();
+  if (seen.length){
+    L.push("AULAS QUE REVISEI");
+    seen.forEach(d => (byDate[d]||[]).forEach(p => L.push("- " + fmt(d) + " · " + p.t + " — " + (p.v||[]).slice(0,4).map(v => v[0] + " (" + v[1] + ")").join("; "))));
+    L.push("");
+  }
+  const pr = S.profile;
+  const me = pr.me; L.push("SOBRE MIM", "- " + me.name + (me.job ? " · " + me.job : "") + (me.city ? " · " + me.city : ""), ...ME_LISTS.filter(([k]) => me[k].length).map(([k,l]) => "- " + l.charAt(0) + l.slice(1).toLowerCase() + ": " + me[k].join(", ")), "");
+  L.push("MEU MUNDO", "- Pessoas: " + (pr.people.map(personInfo).join(" | ")||"—"), "- Memória: " + (pr.facts.join(" / ")||"—"), "- Profissões: " + (pr.jobs.join(", ")||"—"), "- Objetos: " + (pr.objects.join(", ")||"—"), "- Lugares: " + (pr.places.join(", ")||"—"), "- Situações: " + (pr.situations.join(", ")||"—"));
+  return L.join("\n");
+}
+function renderSettings(m){
+  m.append(el("h2","ptitle px","CONFIGURAÇÕES"));
+  const v = el("section","field card"); v.append(el("span","px","VOZ DO ▶"));
+  Object.entries(VOICES).forEach(([k,o]) => {
+    const b = el("button","conv"); b.setAttribute("aria-pressed", String(S.voice === k)); if (S.voice === k) b.style.borderColor = "#fff";
+    b.append(el("span","px", (S.voice === k ? "● " : "○ ") + o.n), el("small",null,o.d));
+    b.onclick = () => { S.voice = k; store("ea-voice", k); render(); };
+    v.append(b);
+  });
+  const t = el("div","acts");
+  const te = el("button","act px","▶ TESTAR INGLÊS"), tp = el("button","act px","▶ TESTAR PORTUGUÊS");
+  te.onclick = () => speakText("Never confuse shit with chocolate. Trust me, I know.", te, true);
+  tp.onclick = () => speakText("Olá! Vamos estudar inglês hoje? Escolha o nível e mande uma frase.", tp, false);
+  t.append(te, tp); v.append(t); m.append(v);
+  const o = el("section","field card"); o.append(el("span","px","OUTROS"));
+  const tu = el("button","act px", S.tut ? "TUTORIAL: LIGADO" : "TUTORIAL: DESLIGADO");
+  tu.onclick = () => { S.tut = !S.tut; store("ea-tut", S.tut); render(); };
+  const ex = el("button","act px","EXPORTAR MEU PROGRESSO"); ex.onclick = () => { S.view = "export"; render(); };
+  const acts = el("div","acts"); acts.append(tu, ex); o.append(acts); m.append(o);
+  renderSettingsExtra(m);
+}
+function renderExport(m){
+  const box = el("section","export");
+  box.append(el("p","lead","Seu progresso: pontos, conversas, correções e aulas revisadas. Baixe, copie ou mande por email."));
+  const text = summary(), pre = el("pre",null,text); box.append(pre);
+  const acts = el("div","acts"), note = el("p","note");
+  if (downloads){
+    const dl = el("button","act main px","BAIXAR .TXT");
+    dl.onclick = async () => { try { await downloads.save({filename:"resumo-estudos-ingles.txt", data:text}); note.textContent = "Arquivo salvo."; } catch(e){ note.textContent = "O download não foi feito. Use COPIAR."; } };
+    acts.append(dl);
+  }
+  const cp = el("button","act px","COPIAR");
+  cp.onclick = async () => { try { await navigator.clipboard.writeText(text); note.textContent = "Resumo copiado."; } catch(e){ note.textContent = "Não deu para copiar. Selecione o texto acima."; } };
+  const bk = el("button","act px","VOLTAR"); bk.onclick = () => { S.view = "me"; render(); };
+  acts.append(cp, bk);
+  const mail = el("form","mail"), mi = el("input"); mi.id = "mailTo"; mi.type = "email"; mi.placeholder = "email (opcional)"; mi.setAttribute("aria-label","Email de destino"); mi.value = load("ea-mail","");
+  const ma = el("a","act main px","ENVIAR POR EMAIL"); ma.target = "_blank"; ma.rel = "noopener";
+  const setHref = () => { const body = text.length > 1800 ? text.slice(0,1800) + "\n…(resumo completo no arquivo .txt)" : text; ma.href = "mailto:" + encodeURIComponent(mi.value.trim()) + "?subject=" + encodeURIComponent("Meu progresso no English Arcade") + "&body=" + encodeURIComponent(body); };
+  mi.oninput = () => { store("ea-mail", mi.value.trim()); setHref(); }; setHref();
+  mail.append(mi); mail.onsubmit = e => e.preventDefault();
+  box.append(acts, mail, ma, note);
+  box.append(el("p","note","Se o email não abrir sozinho, baixe ou copie o resumo e cole no seu email."));
+  m.append(box);
+}
+
+function render(){
+  const m = $("main"); m.textContent = "";
+  ["chat","day","toc","diary","me"].forEach(v => $("t-"+v).setAttribute("aria-selected", String(S.view===v || (v==="toc" && S.view==="nb") || (v==="me" && S.view==="export") || (v==="diary" && S.view==="conv"))));
+  if (S.view === "day") S.ctx = "day"; if (S.view === "nb") S.ctx = "nb";
+  const chat = S.view === "chat"; m.hidden = chat; $("chat").hidden = !chat;
+  if (S.view === "day") renderDay(m);
+  else if (S.view === "toc") renderToc(m);
+  else if (S.view === "nb") renderNotebook(m);
+  else if (S.view === "me") renderMe(m);
+  else if (S.view === "export") renderExport(m);
+  else if (S.view === "diary") renderDiary(m);
+  else if (S.view === "settings") renderSettings(m);
+  else if (S.view === "conv") renderConv(m);
+  document.querySelectorAll(".lv").forEach(b => b.setAttribute("aria-checked", String(b.dataset.lv === S.level)));
+  $("tutBtn").setAttribute("aria-pressed", String(S.tut));
+  const c = $("ctx"); c.textContent = ""; const i = el("i"); i.style.background = ctxColor(); c.append(i, document.createTextNode(ctxLabel()));
+  m.scrollTop = 0;
+  if (chat){ syncTutorial(); $("msgs").scrollTop = 1e9; }
+}
+function openTopic(k, pageIndex){ const ps = topicPages(k); S.topic = k; S.tp = Math.max(0, ps.findIndex(p => p.i === pageIndex)); S.view = "nb"; render(); }
+
+/* ---------- dates ---------- */
+function parseDate(txt){
+  const m = txt.trim().match(/^(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?$/);
+  if (!m) return null;
+  const dd = m[1].padStart(2,"0"), mm = m[2].padStart(2,"0");
+  let y = m[3] ? (m[3].length === 2 ? "20"+m[3] : m[3]) : null;
+  if (!y){ const c = DATES.filter(d => d.slice(5) === mm+"-"+dd); y = c.length ? c[c.length-1].slice(0,4) : "2026"; }
+  return y+"-"+mm+"-"+dd;
+}
+function goDate(txt, inChat){
+  const d = parseDate(txt);
+  const note = t => { if (inChat) botSay(t, {icon:"cal", save:"b"}); else { const g = $("goMsg"); if (g) g.textContent = t; } };
+  if (!d){ note("Não entendi a data. Use dd/mm ou dd/mm/aaaa."); return; }
+  let target = d, msg;
+  if (!byDate[d]){ target = DATES.reduce((a,b) => Math.abs(new Date(b)-new Date(d)) < Math.abs(new Date(a)-new Date(d)) ? b : a); msg = "Não há anotação em " + fmt(d) + ". Abri a aula mais próxima: " + fmt(target) + "."; }
+  S.date = target; S.ym = target.slice(0,7); S.ctx = "day";
+  if (!inChat) S.view = "day";
+  render(); markSeen(target);
+  note(msg || ("Aula de " + fmt(target) + ": " + byDate[target].map(p=>p.t).join(" + ") + ". Ask me anything about it!"));
+}
+
+/* ---------- tutorial ---------- */
+const TUT_PT = ["Escreva ou fale em inglês aqui no chat. Eu corrijo e respondo.","Escolha o nível da resposta no topo: FÁCIL, MÉDIO ou NATIVO.","Toque no nome da aula, no topo, ou em CADERNO, para trocar de aula pelo calendário. Você também pode digitar uma data aqui, como 14/04.","Palavras coloridas abrem o significado quando você toca nelas.","Embaixo das respostas: + EXEMPLOS e EXPLICAR MAIS.","Acertou a frase? Ganha pontos: FÁCIL +1, MÉDIO +3, NATIVO +5. Errou? Perde um pouco.","Em PESSOAL ficam todas as suas conversas, para reler ou continuar depois.","Em EU você cadastra pessoas e lugares da sua vida e exporta seu progresso, inclusive por email."];
+const TUT_EN = ["Write or speak in English here. I'll correct you and reply.","Pick the answer level at the top: EASY, MEDIUM or NATIVE.","Tap the lesson name at the top, or NOTEBOOK, to change lessons with the calendar. You can also type a date here, like 14/04.","Colored words show their meaning when you tap them.","Under each answer: + EXAMPLES and EXPLAIN MORE.","Got it right? You score: EASY +1, MEDIUM +3, NATIVE +5. Got it wrong? You lose a little.","PERSONAL keeps all your conversations so you can reread or continue them.","In ME you add people and places from your life and export your progress, even by email."];
+function tutorialNode(){
+  const box = el("section","tut"); box.id = "tut";
+  const tplay = (lines, pt) => { const b = el("button","play"); b.style.marginLeft = "auto"; b.setAttribute("aria-label", pt ? "Ouvir o tutorial em português" : "Listen to the tutorial in English"); b.innerHTML = PLAY;
+    b.onclick = () => speakText((pt ? "Como jogar. " : "How to play. ") + lines.map((t,i) => (i+1) + ". " + t).join(" "), b, !pt); return b; };
+  const h = el("h2","px"); h.append(pixEl("br",2), document.createTextNode("COMO JOGAR"), tplay(TUT_PT, true)); box.append(h);
+  const ol = el("ol"); TUT_PT.forEach(t => ol.append(el("li",null,t))); box.append(ol);
+  const en = el("div","en"); const h2 = el("h2","px"); h2.append(pixEl("us",2), document.createTextNode("HOW TO PLAY"), tplay(TUT_EN, false)); en.append(h2);
+  const ol2 = el("ol"); TUT_EN.forEach(t => ol2.append(el("li",null,t))); en.append(ol2); box.append(en);
+  return box;
+}
+function syncTutorial(){
+  const cur = $("tut");
+  if (S.tut && !cur) $("msgs").prepend(tutorialNode());
+  if (!S.tut && cur) cur.remove();
+}
+
+/* ---------- chat rendering ---------- */
+const PLAY = pix("play",2);
+function bubble(cls, voice, host){
+  const wrap = el("div","m " + cls), b = el("div","bub"), t = el("div","txt");
+  if (voice) t.append(el("span","vtag","ÁUDIO TRANSCRITO"));
+  const pb = el("button","play"); pb.setAttribute("aria-label","Ouvir"); pb.innerHTML = PLAY;
+  pb.onclick = () => speakText(speakable(t._raw || t.textContent), pb, cls === "me");
+  b.append(t, pb); wrap.append(b); t._play = pb; t._wrap = wrap;
+  (host || $("msgs")).append(wrap); if (!host) $("msgs").scrollTop = 1e9; return t;
+}
+function userSay(text, voice){ if (window.EA && EA.user()) EA.countMessage(); const t = bubble("me", voice); const ln = el("span","line"); namesText(ln, text); t.append(ln); t._raw = text; logMsg("u", text); rec("u", text, voice ? {v:1} : null); return t; }
+function botSay(text, o){ o = o || {}; const t = bubble("bot", false, o.host); if (o.icon) t.append(pixEl(o.icon,2)); t.append(document.createTextNode(text)); t._raw = text; if (o.save) rec(o.save, (o.icon ? "{" + o.icon + "} " : "") + text); return t; }
+
+const LAB = {FIX:"CORREÇÃO", REPLY:"", "YOUR TURN":"SUA VEZ"};
+function richLine(parent, text, color){
+  const line = el("span","line");
+  let rest = text;
+  const ic = rest.match(/^\s*\{(\w+)\}\s*/);
+  if (ic && ICONS[ic[1]]){ line.append(pixEl(ic[1],2)); rest = rest.slice(ic[0].length); }
+  const re = /\[\[(.+?)\|(.+?)\]\]|\*\*(.+?)\*\*/g; let last = 0, m;
+  while ((m = re.exec(rest))){
+    namesText(line, rest.slice(last, m.index));
+    if (m[1]) line.append(kwButton(m[1], m[1] + " — " + m[2], color));
+    else { const b = el("b",null,m[3]); line.append(b); }
+    last = re.lastIndex;
+  }
+  namesText(line, rest.slice(last)); line.append(document.createTextNode("\n"));
+  parent.append(line);
+}
+function paint(box, text){
+  box.textContent = ""; box._raw = text;
+  const color = ctxColor();
+  text.split(/\n+/).forEach(l => {
+    if (/^\s*SCORE\s*:/i.test(l)) return;
+    const m = l.match(/^\s*(FIX|REPLY|YOUR TURN)\s*:\s*(.*)$/i);
+    if (m){ const k = m[1].toUpperCase(); if (LAB[k]) box.append(el("span","lab",LAB[k])); if (m[2].trim()) richLine(box, m[2], color); }
+    else if (l.trim()) richLine(box, l, color);
+  });
+}
+function moreButtons(box, topicText){
+  const row = el("div","more");
+  const ex = el("button","px","+ EXEMPLOS"), mo = el("button","px","EXPLICAR MAIS");
+  ex.onclick = () => { row.remove(); followUp("More examples, please.", "examples", topicText); };
+  mo.onclick = () => { row.remove(); followUp("Can you explain it in more detail?", "explain", topicText); };
+  row.append(ex, mo); box._wrap.append(row);
+}
+function followUp(label, mode, about){ if (S.busy) return; userSay(label); S.hist.push({r:"u", t:label}); if (sample) askClaude(label, false, mode, about); else offline(label); }
+
+/* ---------- Claude ---------- */
+function lessonContext(){
+  return ctxPages().map(p => "• " + short(p.d) + " — " + p.t + " (" + T[p.k].n + ")\n  Phrases: " + p.f.join(" | ") + "\n  Vocabulary: " + (p.v||[]).map(v=>v[0]+" = "+v[1]).join("; ") + (p.g ? "\n  Tip: " + p.g : "")).join("\n");
+}
+const LEVEL_RULE = {simple:"SIMPLE level: short sentences and basic words (A2)", medium:"MEDIUM level: clear, natural English (B1-B2)", native:"NATIVE level: idiomatic, the way a native speaker would say it (C1)"};
+async function askClaude(text, voice, mode, about){
+  const pr = S.profile;
+  const length = mode === "examples" ? "Give 3 new short example sentences (one per line inside REPLY), using his world when possible. Max 70 words."
+    : mode === "explain" ? "Give a fuller explanation: rule, when to use it, a common mistake Brazilians make, and 2 examples. Max 120 words."
+    : "Be short and objective but genuinely clarifying: REPLY has 1 to 3 sentences. Max 55 words in total.";
+  const instr = "You are the student's English tutor inside the notebook app \"English Arcade\". The student is Brazilian; details about him are below.\n" +
+   "CONTEXT (" + ctxLabel() + "):\n" + lessonContext() + "\n\n" +
+   "STUDENT'S WORLD (each person comes with their own places, objects and actions — keep them together): " + worldText() + "\n" +
+   (S.drill ? "He is answering this drill: " + S.drill.task + " \"" + S.drill.phrase + "\". Say if the transformation is right.\n" : "") +
+   (about ? "Previous answer he wants to expand: " + about + "\n" : "") +
+   "FORMAT (plain text, no markdown, each part on its own line):\n" +
+   "FIX: only if his message has an English mistake — the corrected sentence + why in max 8 words (Portuguese ok). Omit this line when it's correct.\n" +
+   "REPLY: the answer, written at the " + LEVEL_RULE[S.level] + ". Answer from the lesson content when he asks about it and quote it exactly.\n" +
+   "SCORE: correct | mistake | none — correct if his English message or drill answer has no mistakes; mistake if you wrote a FIX line; none if he wrote in Portuguese, only asked something without writing a real English sentence, or for examples/explain modes.\n" +
+   "YOUR TURN: one short challenge (ask a question, write a negative, or use another subject from his world). Omit it for the examples/explain modes.\n" +
+   "STYLE: " + length + " Mark the 1 or 2 most useful words or expressions as [[expression|meaning in Portuguese, max 8 words]]. Sometimes — not every time — use a famous quote or a reference to a globally known movie or series when it truly fits. You may start REPLY with ONE icon tag that matches the content, chosen from {plane} {food} {film} {book} {star} {bulb} {chat} {heart} {house} {clock} {check} — only when it fits, never forced.\n\n" +
+   "Recent chat:\n" + S.hist.slice(-8).map(h => (h.r === "u" ? "Student: " : "Tutor: ") + h.t).join("\n") + "\n\nStudent's new message: " + text;
+  const box = botSay("…"); S.busy = true;
+  try {
+    const res = await sample(instr, { cache:false, onText: ({text}) => paint(box, text) });
+    paint(box, res.text);
+    S.hist.push({r:"a", t:res.text}); logMsg("a", res.text);
+    const sm = res.text.match(/SCORE\s*:\s*(correct|mistake)/i);
+    let extra = null;
+    if (sm && !mode) extra = addScore(sm[1].toLowerCase() === "correct", box._wrap);
+    rec("a", res.text, extra);
+    if (S.drill){ S.drills++; store("ea-drills", S.drills); }
+    S.drill = null;
+    const reply = (res.text.split("\n").find(l => /^\s*REPLY\s*:/i.test(l)) || res.text).slice(0,300);
+    if (mode !== "explain") moreButtons(box, reply);
+    if (voice) speakText(speakable(res.text), box._play);
+  } catch (e) {
+    if (e && e.code === "not_granted"){ sample = null; offline(text, box, voice); }
+    else if (e && e.code === "limit") box.textContent = "Você usou todas as mensagens do professor de hoje. Volte amanhã, ou treine com PERGUNTA, NEGATIVA e OUTRO SUJEITO no caderno.";
+    else box.textContent = e && e.code === "rate_limited" ? "Muitas mensagens seguidas. Espere um pouco." : "Não consegui falar com o professor agora. Tente de novo.";
+  }
+  S.busy = false;
+}
+
+/* ---------- drills & offline ---------- */
+function drill(p, kind){
+  p = p || pick(ctxPages()); if (!p) return;
+  const phrase = pick(p.f.filter(f => f.length < 120)) || p.f[0];
+  kind = kind || pick(["q","n","s"]);
+  const person = S.profile.people.length ? pick(S.profile.people) : {name:"Alex", places:[], objects:[], actions:[]};
+  const who = person.name;
+  const own = [...person.places, ...person.objects, ...person.actions];
+  const extra = own.length ? own : [...S.profile.objects, ...S.profile.places, ...S.profile.situations];
+  const task = kind === "q" ? "Transforme em PERGUNTA:" : kind === "n" ? "Transforme em NEGATIVA:" : "Reescreva com " + who + " como sujeito" + (extra.length ? " e inclua \"" + pick(extra) + "\"" : "") + ":";
+  S.drill = {kind, who, phrase, task};
+  S.view = "chat"; render();
+  botSay(task + "\n" + phrase, {icon:"star", save:"d"});
+  $("msg").focus();
+}
+function offline(text, box, voice){
+  box = box || botSay("");
+  const d = S.drill, t = text.trim();
+  let out;
+  if (d){
+    let ok, hint;
+    if (d.kind === "q"){ ok = /\?\s*$/.test(t) && /^(do|does|did|is|are|was|were|have|has|had|can|could|will|would|should|may|might|must|what|where|when|why|how|who|which|whose)\b/i.test(t); hint = "Comece com o auxiliar (do, did, have, is, can…) e termine com \"?\"."; }
+    else if (d.kind === "n"){ ok = /\b(not|never|nobody|nothing|no one)\b|n't/i.test(t); hint = "Use don't, didn't, haven't, isn't, won't ou never."; }
+    else { ok = t.toLowerCase().includes(d.who.toLowerCase()); hint = "Use " + d.who + " como sujeito e ajuste o verbo."; }
+    out = ok ? "Boa! O formato está certo." : "Quase! " + hint;
+    var sc = addScore(ok, box._wrap);
+    S.drills++; store("ea-drills", S.drills); S.drill = null;
+    setTimeout(() => drill(), 700);
+  } else {
+    out = "Sem conexão com o professor agora. Vamos treinar com as frases desta aula.";
+    setTimeout(() => drill(), 500);
+  }
+  box.textContent = ""; box.append(pixEl(d ? "check" : "chat",2), document.createTextNode(out)); box._raw = out;
+  rec("b", out, d && typeof sc !== "undefined" ? sc : null);
+  if (voice) speakText(out, box._play);
+}
+
+/* ---------- voice ---------- */
+let dictBase = "", listening = false, voiceTurn = false, playing = null;
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function speakable(raw){
+  const lines = String(raw||"").split(/\n+/);
+  const keep = lines.filter(l => !/^\s*(FIX|SCORE)\s*:/i.test(l)).map(l => l.replace(/^\s*(REPLY|YOUR TURN)\s*:\s*/i,""));
+  return keep.join(" ").replace(/\[\[(.+?)\|.+?\]\]/g,"$1").replace(/\{\w+\}/g,"").replace(/\*\*/g,"").replace("ÁUDIO TRANSCRITO","").trim().slice(0,1900);
+}
+let actx = null, samSrc = null, samVoices = {};
+const NUM_PT = ["zero","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez"];
+/* Portuguese (Rio) spelling -> SAM phonemes, so the 8-bit voice reads Portuguese with Portuguese sounds */
+function ptWord(w){
+  const V = "aeiouáéíóúâêôãõàü", isV = c => !!c && V.includes(c), soft = c => !!c && "eiéêí".includes(c);
+  let o = "", i = 0; const n = w.length;
+  const stress = c => "áéíóúâêô".includes(c) ? "5" : "";
+  while (i < n){
+    const c = w[i], d = w[i+1], e = w[i+2], prev = w[i-1], end = i === n-1;
+    const tri = w.slice(i,i+3), duo = w.slice(i,i+2);
+    if (tri === "ção"){ o += "SAWN "; i += 3; continue; }
+    if (tri === "ões"){ o += "OYNS "; i += 3; continue; }
+    if (duo === "ão"){ o += "AWN "; i += 2; continue; }
+    if (duo === "ãe"){ o += "AYN "; i += 2; continue; }
+    if (duo === "õe"){ o += "OYN "; i += 2; continue; }
+    if (duo === "lh"){ o += "L YX "; i += 2; continue; }
+    if (duo === "nh"){ o += "N YX "; i += 2; continue; }
+    if (duo === "ch"){ o += "SH "; i += 2; continue; }
+    if (duo === "rr"){ o += "/H "; i += 2; continue; }
+    if (duo === "ss" || duo === "sc" && soft(e) || duo === "xc"){ o += "S "; i += 2; continue; }
+    if (duo === "qu"){ o += soft(e) ? "K " : "K W "; i += 2; continue; }
+    if (duo === "gu" && soft(e)){ o += "G "; i += 2; continue; }
+    if (duo === "ou"){ o += "OW "; i += 2; continue; }
+    if (duo === "ei"){ o += "EY "; i += 2; continue; }
+    if (duo === "ai" || duo === "ái"){ o += "AY "; i += 2; continue; }
+    if (duo === "oi"){ o += "OY "; i += 2; continue; }
+    if (duo === "au"){ o += "AW "; i += 2; continue; }
+    if ((c === "a" || c === "e") && d === "m" && i + 2 === n){ o += c === "a" ? "AWN " : "EYN "; i += 2; continue; }
+    if (isV(c)){
+      let ph;
+      if ("aáàâ".includes(c)) ph = c === "â" ? "AH" : "AA";
+      else if (c === "ã") ph = "AH";
+      else if (c === "é") ph = "EH";
+      else if (c === "ê") ph = "EY";
+      else if (c === "e") ph = (end || (i === n-2 && d === "s")) && (n > 2 || n === 1) ? "IY" : "EH";
+      else if ("ií".includes(c)) ph = "IY";
+      else if (c === "ó") ph = "AO";
+      else if (c === "ô") ph = "OW";
+      else if (c === "o") ph = (end || (i === n-2 && d === "s")) && (n > 2 || n === 1) ? "UW" : "OH";
+      else ph = "UW";
+      o += ph + stress(c);
+      if ((d === "m" || d === "n") && !isV(e)){ o += " N "; i += 2; continue; }
+      o += " "; i++; continue;
+    }
+    let ph = "";
+    switch (c){
+      case "b": ph = "B"; break; case "f": ph = "F"; break; case "p": ph = "P"; break; case "v": ph = "V"; break; case "k": ph = "K"; break;
+      case "m": ph = "M"; break; case "n": ph = "N"; break; case "j": ph = "ZH"; break; case "ç": ph = "S"; break; case "x": ph = "SH"; break;
+      case "w": ph = "W"; break; case "y": ph = "IY"; break; case "h": ph = ""; break;
+      case "c": ph = soft(d) ? "S" : "K"; break;
+      case "g": ph = soft(d) ? "ZH" : "G"; break;
+      case "z": ph = end ? "S" : "Z"; break;
+      case "s": ph = isV(prev) && isV(d) ? "Z" : "S"; break;
+      case "t": ph = d === "i" || (d === "e" && i === n-2) ? "CH" : "T"; break;
+      case "d": ph = d === "i" || (d === "e" && i === n-2) ? "J" : "D"; break;
+      case "l": ph = isV(d) ? "L" : "UW"; break;
+      case "r": ph = i === 0 || "nls".includes(prev) || end ? "/H" : "DX"; break;
+      default: ph = "";
+    }
+    if (ph) o += ph + " ";
+    i++;
+  }
+  return o.trim();
+}
+function ptToSam(text){
+  return text.toLowerCase().replace(/\d+/g, m => +m <= 10 ? NUM_PT[+m] : m.split("").map(x => NUM_PT[+x]).join(" "))
+    .split(/([.,!?;:])|\s+/).filter(Boolean).map(t => /^[.,!?;:]$/.test(t) ? (t === "?" ? "?" : t === "," || t === ";" || t === ":" ? "," : ".") : ptWord(t.replace(/[^a-zà-ü]/g,""))).filter(Boolean).join(" ");
+}
+const VOICES = {
+  classic: {n:"8-BIT CLÁSSICO", d:"A voz do Commodore 64, crua e com chiado.", sam:{speed:72, pitch:64, throat:128, mouth:128}, filter:false},
+  soft:    {n:"8-BIT SUAVE", d:"Mesma voz retrô, mais lenta e filtrada: menos ruído e interferência.", sam:{speed:82, pitch:70, throat:110, mouth:150}, filter:true},
+  device:  {n:"VOZ DO APARELHO", d:"Voz natural do celular ou do computador. Se o aparelho não tiver voz, uso a 8-BIT SUAVE.", sam:null, filter:true}
+};
+function samSay(text, done, pt){
+  if (!window.SamJs) return false;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume();
+    const vk = S.voice === "classic" ? "classic" : "soft";
+    const sam = samVoices[vk] = samVoices[vk] || new window.SamJs(VOICES[vk].sam);
+    let parts;
+    if (pt){
+      parts = ptToSam(text).split(/\s*[.?]\s*/).filter(x => x.trim()).flatMap(p => p.length > 220 ? p.match(/.{1,220}(\s|$)/g) : [p]);
+    } else {
+      const clean = text.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9 .,!?'-]/g," ").replace(/\s+/g," ").trim();
+      parts = clean.split(/(?<=[.!?,])\s+/).flatMap(p => p.length > 200 ? p.match(/.{1,200}(\s|$)/g) : [p]);
+    }
+    const bufs = parts.filter(x => x && x.trim()).map(p => { try { return sam.buf32(p.trim() + (pt ? "." : ""), pt); } catch(e) { return false; } }).filter(Boolean);
+    if (!bufs.length) return false;
+    const gap = 22050 * 0.14, total = bufs.reduce((n,b) => n + b.length + gap, 0);
+    const ab = actx.createBuffer(1, Math.ceil(total), 22050), ch = ab.getChannelData(0);
+    let off = 0; bufs.forEach(b => { ch.set(b, Math.floor(off)); off += b.length + gap; });
+    samSrc = actx.createBufferSource(); samSrc.buffer = ab;
+    let node = samSrc;
+    if (VOICES[vk].filter){
+      const hp = actx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 140;
+      const lp = actx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2600; lp.Q.value = 0.6;
+      const lp2 = actx.createBiquadFilter(); lp2.type = "lowpass"; lp2.frequency.value = 3400; lp2.Q.value = 0.5;
+      const comp = actx.createDynamicsCompressor(); comp.threshold.value = -22; comp.ratio.value = 4;
+      const g = actx.createGain(); g.gain.value = 1.15;
+      node.connect(hp); hp.connect(lp); lp.connect(lp2); lp2.connect(comp); comp.connect(g); node = g;
+    }
+    node.connect(actx.destination);
+    samSrc.onended = () => { samSrc = null; done(); }; samSrc.start();
+    return true;
+  } catch(e) { return false; }
+}
+function stopSpeech(){ try { if (samSrc){ samSrc.onended = null; samSrc.stop(); samSrc = null; } } catch(e) {} try { if (tts) tts.stop(); } catch(e) {} try { window.speechSynthesis && speechSynthesis.cancel(); } catch(e) {} if (playing) playing.classList.remove("on"); playing = null; }
+async function speakText(text, btn, isMe){
+  if (!text) return;
+  if (playing && playing === btn){ stopSpeech(); return; }
+  stopSpeech(); playing = btn; if (btn) btn.classList.add("on");
+  const pt = !isMe && /[ãõçáéíóúâêô]/i.test(text);
+  const done = () => { if (btn) btn.classList.remove("on"); if (playing === btn) playing = null; };
+  if (S.voice === "device"){
+    if (tts){ try { await tts.speak(text, {language: pt ? "pt-BR" : "en"}); done(); return; } catch(e) {} }
+    const voices = (() => { try { return window.speechSynthesis ? speechSynthesis.getVoices() : []; } catch(e) { return []; } })();
+    const v = voices.find(x => pt ? /^pt/i.test(x.lang) : /^en/i.test(x.lang));
+    if (v){ try { const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = 0.95; u.onend = done; u.onerror = done; speechSynthesis.speak(u); return; } catch(e) {} }
+  }
+  if (samSay(text, done, pt)) return;
+  done();
+}
+function setMic(){ $("mic").classList.toggle("rec", listening); $("mic").setAttribute("aria-label", listening ? "Parar e enviar" : "Gravar áudio"); }
+$("mic").onclick = () => {
+  if (listening){ if (dict) dict.stop().catch(()=>{}); else if (window._rec) window._rec.stop(); return; }
+  stopSpeech();
+  if (dict){
+    dictBase = $("msg").value.trim(); listening = true; setMic();
+    dict.start().catch(e => { listening = false; setMic(); if (e && e.code === "not_granted"){ dict = null; $("mic").hidden = !SR; } });
+    return;
+  }
+  if (!SR) return;
+  const rec = new SR(); window._rec = rec; rec.lang = "en-US"; rec.interimResults = true; rec.continuous = true;
+  let fin = $("msg").value.trim() ? $("msg").value.trim() + " " : "";
+  rec.onresult = ev => { let tmp = ""; for (let i = ev.resultIndex; i < ev.results.length; i++){ const r = ev.results[i]; if (r.isFinal) fin += r[0].transcript + " "; else tmp += r[0].transcript; } $("msg").value = (fin + tmp).trim(); };
+  rec.onend = () => { listening = false; setMic(); if ($("msg").value.trim()){ voiceTurn = true; submitNow(); } };
+  rec.onerror = () => { listening = false; setMic(); };
+  try { rec.start(); listening = true; setMic(); } catch(e) { $("mic").hidden = true; }
+};
+
+/* ---------- input ---------- */
+function submitNow(){
+  const voice = voiceTurn; voiceTurn = false;
+  const v = $("msg").value.trim(); if (!v || S.busy) return;
+  $("msg").value = "";
+  if (S.view !== "chat"){ S.view = "chat"; render(); }
+  userSay(v, voice);
+  if (parseDate(v)){ goDate(v, true); return; }
+  S.hist.push({r:"u", t:v});
+  if (sample) askClaude(v, voice); else offline(v, null, voice);
+}
+$("form").onsubmit = e => { e.preventDefault(); if (!listening) submitNow(); };
+document.querySelectorAll(".lv").forEach(b => b.onclick = () => { S.level = b.dataset.lv; store("ea-level", S.level); render(); });
+$("t-chat").onclick = () => { S.view = "chat"; render(); };
+$("t-day").onclick = () => { S.view = "day"; render(); };
+$("t-toc").onclick = () => { S.view = "toc"; render(); };
+$("t-me").onclick = () => { S.view = "me"; render(); };
+$("t-diary").onclick = () => { S.view = "diary"; render(); };
+$("ctx").onclick = () => { if (S.ctx === "nb") S.view = "nb"; else { S.view = "day"; S.cal = true; } render(); };
+$("calBtn").onclick = () => { S.view = "day"; S.cal = true; render(); };
+$("setBtn").onclick = () => { S.view = "settings"; render(); };
+$("tutBtn").onclick = () => { S.tut = !S.tut; store("ea-tut", S.tut); if (S.tut){ S.view = "chat"; } render(); if (S.tut) $("msgs").scrollTop = 0; };
+
+function stateObj(){ return {score:S.score, drills:S.drills, seen:S.seen, level:S.level, voice:S.voice, tut:S.tut, msgs:S.log.filter(x => x.r === "u").length, log:S.log.slice(-120), upd:Date.now()}; }
+function saveProfile(){
+  store("ea-profile", S.profile);
+  if (window.EA && EA.user()){ clearTimeout(saveTimer); saveTimer = setTimeout(() => { EA.saveProfile(S.profile).catch(e => console.warn(e)); }, 600); }
+}
+
+/* ---------- long text in inputs: runs on focus ---------- */
+const measure = document.createElement("canvas").getContext("2d");
+function overflowW(inp, text){ const cs = getComputedStyle(inp); measure.font = cs.fontSize + " " + cs.fontFamily; return measure.measureText(text).width > inp.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); }
+let tick = null;
+function stopTick(inp){ clearInterval(tick); tick = null; if (inp && inp.dataset.ph != null){ inp.placeholder = inp.dataset.ph; delete inp.dataset.ph; } }
+document.addEventListener("focusin", e => {
+  const inp = e.target; if (!(inp instanceof HTMLInputElement)) return;
+  stopTick();
+  if (!inp.value){
+    const ph = inp.placeholder; if (!ph || !overflowW(inp, ph)) return;
+    inp.dataset.ph = ph; const loop = ph + "     "; let i = 0;
+    tick = setInterval(() => { if (inp.value){ stopTick(inp); return; } i = (i + 1) % loop.length; inp.placeholder = loop.slice(i) + loop.slice(0, i); }, 140);
+  } else if (inp.scrollWidth > inp.clientWidth){
+    inp.scrollLeft = 0; const end = inp.scrollWidth - inp.clientWidth, t0 = performance.now() + 250, dur = Math.min(4000, 30 * end + 600);
+    const step = now => { const k = Math.max(0, Math.min(1, (now - t0) / dur)); inp.scrollLeft = end * k; if (k < 1 && document.activeElement === inp) requestAnimationFrame(step); else { try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch(x) {} } };
+    requestAnimationFrame(step);
+  }
+});
+document.addEventListener("focusout", e => { if (e.target instanceof HTMLInputElement) stopTick(e.target); });
+document.addEventListener("input", e => { if (e.target instanceof HTMLInputElement && e.target.dataset.ph != null) stopTick(e.target); });
+
+/* ---------- start ---------- */
+showScore();
+$("mic").hidden = !SR;
+if (!window.speechSynthesis && !window.SamJs) document.body.classList.add("nospeak");
+render();
+
+/* ---------- Firebase version: login, data, settings ---------- */
+downloads = { save: async ({filename, data}) => {
+  const url = URL.createObjectURL(new Blob([data], {type: filename.endsWith(".json") ? "application/json" : "text/plain;charset=utf-8"}));
+  const a = document.createElement("a"); a.href = url; a.download = filename; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+} };
+sample = async (prompt, o) => EA.ask(prompt, o && o.onText);
+tts = null; dict = null;
+
+/* backup: export and safe import */
+function backupData(){
+  return JSON.stringify({app:"english-arcade", v:1, exported:new Date().toISOString(), profile:S.profile, sessions:S.sessions, score:S.score, drills:S.drills, seen:S.seen, level:S.level, voice:S.voice}, null, 1);
+}
+const str = (x, n) => typeof x === "string" ? x.slice(0, n) : "";
+const strs = (a, n, m) => Array.isArray(a) ? a.filter(x => typeof x === "string").slice(0, m || 100).map(x => x.slice(0, n || 200)) : [];
+function cleanBackup(o){
+  if (!o || o.app !== "english-arcade") throw "Este arquivo não é um backup do English Arcade.";
+  const p = o.profile || {}, me = p.me || {};
+  const profile = normProfile({
+    people: (Array.isArray(p.people) ? p.people : []).slice(0, 60).map(x => typeof x === "string" ? str(x, 120) : {
+      name: str(x && x.name, 60), role: str(x && x.role, 60), job: str(x && x.job, 60),
+      color: /^#[0-9a-f]{6}$/i.test(x && x.color) ? x.color : "", places: strs(x && x.places, 80, 40), objects: strs(x && x.objects, 80, 40), actions: strs(x && x.actions, 120, 40)
+    }),
+    jobs: strs(p.jobs, 80), objects: strs(p.objects, 80), places: strs(p.places, 80), situations: strs(p.situations, 120), facts: strs(p.facts, 300, 200),
+    me: Object.assign({name: str(me.name, 60), job: str(me.job, 60), city: str(me.city, 60)}, Object.fromEntries(ME_LISTS.map(([k]) => [k, strs(me[k], 120, 60)])))
+  });
+  const sessions = (Array.isArray(o.sessions) ? o.sessions : []).slice(0, 60).filter(x => x && /^[a-z0-9]{1,20}$/.test(x.id)).map(x => ({
+    id: x.id, start: +x.start || Date.now(), upd: +x.upd || Date.now(), ctx: str(x.ctx, 80), pts: Math.max(-99999, Math.min(99999, +x.pts || 0)),
+    msgs: (Array.isArray(x.msgs) ? x.msgs : []).slice(-200).filter(q => q && ["u","a","b","d"].includes(q.r) && typeof q.t === "string").map(q => Object.assign({r: q.r, t: q.t.slice(0, 4000)}, q.v ? {v: 1} : {}, typeof q.pts === "number" ? {pts: Math.max(-9, Math.min(9, q.pts))} : {}))
+  }));
+  return {profile, sessions, score: Math.max(0, Math.min(1e6, +o.score || 0)), drills: Math.max(0, Math.min(1e6, +o.drills || 0)), seen: strs(o.seen, 10, 400).filter(d => /^\d{4}-\d\d-\d\d$/.test(d))};
+}
+async function importBackup(file, note){
+  try {
+    if (file.size > 3e6) throw "Arquivo grande demais.";
+    const b = cleanBackup(JSON.parse(await file.text()));
+    store("ea-preimport", JSON.parse(backupData()));
+    S.profile = b.profile;
+    b.sessions.forEach(x => { const i = S.sessions.findIndex(q => q.id === x.id); if (i < 0) S.sessions.push(x); else if (x.upd > S.sessions[i].upd) S.sessions[i] = x; });
+    S.score = Math.max(S.score, b.score); S.drills = Math.max(S.drills, b.drills);
+    b.seen.forEach(d => { if (!S.seen.includes(d)) S.seen.push(d); });
+    saveProfile(); persist();
+    for (const x of b.sessions) { try { await EA.saveSession(x); } catch(e) {} }
+    showScore(); note.textContent = "Backup importado: " + b.sessions.length + " conversas. Nada foi apagado.";
+  } catch(e) { note.textContent = typeof e === "string" ? e : "Não consegui ler este arquivo."; }
+}
+
+function renderSettingsExtra(m){
+  const u = EA.user() || {};
+  /* account */
+  const c = el("section","field card"); c.append(el("span","px","CONTA"));
+  c.append(el("p","note", u.anon ? "Usando sem conta. Seus dados ficam só neste aparelho até você salvar a conta." : (u.name || "") + (u.email ? " · " + u.email : "")));
+  const ca = el("div","acts"), cn = el("p","note");
+  if (u.anon){
+    const lk = el("button","act main px","SALVAR CONTA COM GOOGLE");
+    lk.onclick = async () => { try { await EA.linkGoogle(); cn.textContent = "Conta salva!"; render(); } catch(e){ cn.textContent = e; } };
+    ca.append(lk);
+  }
+  const out = el("button","act px","SAIR");
+  out.onclick = async () => {
+    if (u.anon && !out.dataset.c){ out.dataset.c = "1"; out.textContent = "SAIR MESMO? (SEM CONTA, PERDE OS DADOS)"; return; }
+    await EA.logout(); location.reload();
+  };
+  ca.append(out); c.append(ca, cn); m.append(c);
+  /* backup */
+  const b = el("section","field card"); b.append(el("span","px","BACKUP"));
+  b.append(el("p","note","Baixe um arquivo com seu perfil, conversas e pontos. Importar junta com o que já existe, sem apagar nada."));
+  const ba = el("div","acts"), bn = el("p","note");
+  const dl = el("button","act px","BAIXAR BACKUP (.JSON)");
+  dl.onclick = () => downloads.save({filename:"english-arcade-backup.json", data:backupData()}).then(() => bn.textContent = "Backup baixado.");
+  const fi = el("input"); fi.type = "file"; fi.accept = ".json,application/json"; fi.id = "importFile"; fi.className = "sr";
+  const il = el("label","act px","IMPORTAR BACKUP"); il.htmlFor = "importFile"; il.style.display = "inline-flex"; il.style.alignItems = "center"; il.style.cursor = "pointer";
+  fi.onchange = () => { if (fi.files[0]) importBackup(fi.files[0], bn); };
+  ba.append(dl, il, fi); b.append(ba, bn); m.append(b);
+  /* suggestions */
+  const f = el("section","field card"); f.append(el("span","px","SUGESTÕES"));
+  f.append(el("p","note","Sua sugestão vai para o administrador do app."));
+  const ta = el("textarea","lfield"); ta.id = "fbText"; ta.maxLength = 1500; ta.placeholder = "Escreva sua ideia ou o problema que encontrou"; ta.setAttribute("aria-label","Sugestão");
+  const fb = el("button","act main px","ENVIAR SUGESTÃO"), fn = el("p","note");
+  fb.onclick = async () => { const t = ta.value.trim(); if (!t) return; fb.disabled = true; try { await EA.feedback(t); ta.value = ""; fn.textContent = "Enviada. Obrigado!"; loadMine(); } catch(e){ fn.textContent = typeof e === "string" ? e : "Não consegui enviar agora."; } fb.disabled = false; };
+  const mine = el("div");
+  const loadMine = async () => { const list = await EA.myFeedback(); mine.textContent = ""; list.forEach(x => { const d = el("p","note"); d.textContent = "• " + x.text.slice(0, 80) + " — " + (x.status || "nova") + (x.reply ? " · resposta: " + x.reply : ""); mine.append(d); }); };
+  f.append(ta, fb, fn, mine); m.append(f); loadMine();
+  /* app */
+  const a = el("section","field card"); a.append(el("span","px","APP"));
+  const aa = el("div","acts");
+  const ins = el("button","act px","📲 BAIXAR APP"); ins.onclick = () => { $("installModal").hidden = false; };
+  aa.append(ins);
+  if (u.admin){
+    const adm = el("a","act main px","🛡 CENTRAL ADM"); adm.href = "../../admin.html"; aa.append(adm);
+    EA.versions().then(v => { if (v.beta && v.beta !== v.current){ const t = el("a","act px","🧪 TESTAR v" + v.beta); t.href = "../../v/" + v.beta + "/"; aa.append(t); } });
+  }
+  a.append(aa); m.append(a);
+  const cr = el("p","credits"); cr.append(document.createTextNode("Criado por Kevin Paulo · @Arkev.arq · ")); const pl = el("a",null,"Privacidade"); pl.href = "../../politica.html"; cr.append(pl);
+  m.append(cr);
+}
+
+/* login screen */
+const lgErr = t => { $("lgErr").textContent = t || ""; $("lgErr").classList.toggle("bad", !!t); };
+async function lg(fn){ document.querySelectorAll(".login .lbtn").forEach(b => b.disabled = true); lgErr("Aguarde…"); $("lgErr").classList.remove("bad"); try { await fn(); } catch(e){ lgErr(typeof e === "string" ? e : "Não deu certo. Tente de novo."); } document.querySelectorAll(".login .lbtn").forEach(b => b.disabled = false); }
+$("lgGoogle").onclick = () => lg(() => EA.google());
+$("lgIn").onclick = () => lg(() => EA.emailLogin($("lgEmail").value, $("lgPass").value));
+$("lgNew").onclick = () => lg(() => EA.emailCreate($("lgEmail").value, $("lgPass").value, $("lgEmail").value.split("@")[0]));
+$("lgLink").onclick = () => lg(async () => { if (!$("lgEmail").value.trim()) throw "Digite seu email primeiro."; await EA.emailLink($("lgEmail").value); lgErr("Link enviado! Abra o email neste aparelho e toque no link."); });
+$("lgReset").onclick = () => lg(async () => { if (!$("lgEmail").value.trim()) throw "Digite seu email primeiro."; await EA.resetPassword($("lgEmail").value); lgErr("Enviamos um email para trocar a senha."); });
+$("lgAnon").onclick = () => lg(() => EA.anon());
+$("lgInstall").onclick = () => { $("installModal").hidden = false; };
+$("installModal").onclick = e => { if (e.target === $("installModal")) $("installModal").hidden = true; };
+$("installClose").onclick = () => { $("installModal").hidden = true; };
+
+let hydrated = null;
+async function hydrate(u){
+  KP = "ea:" + u.uid + ":";
+  S.profile = normProfile(load("ea-profile", null)); S.level = load("ea-level","medium"); S.tut = load("ea-tut", true); S.voice = load("ea-voice","soft");
+  S.seen = load("ea-seen", []); S.log = load("ea-log", []); S.drills = load("ea-drills", 0); S.score = load("ea-score", 0); S.sessions = load("ea-sessions", []); S.cur = null; S.hist = [];
+  const cloud = await EA.loadAll();
+  if (cloud.profile) S.profile = normProfile(cloud.profile);
+  const st = cloud.state;
+  if (st){
+    if (typeof st.score === "number") S.score = Math.max(S.score, st.score);
+    if (typeof st.drills === "number") S.drills = Math.max(S.drills, st.drills);
+    (st.seen || []).forEach(d => { if (!S.seen.includes(d)) S.seen.push(d); });
+    if (st.level) S.level = st.level; if (st.voice) S.voice = st.voice; if (typeof st.tut === "boolean") S.tut = st.tut;
+    if (Array.isArray(st.log) && st.log.length > S.log.length) S.log = st.log;
+  }
+  (cloud.sessions || []).forEach(x => { const i = S.sessions.findIndex(q => q.id === x.id); if (i < 0) S.sessions.push(x); else if ((x.upd||0) > (S.sessions[i].upd||0)) S.sessions[i] = x; });
+  S.sessions.sort((a,b) => b.upd - a.upd);
+  if (!S.profile.me.name && u.name) S.profile.me.name = u.name;
+  [...$("msgs").querySelectorAll(".m, .more")].forEach(n => n.remove());
+  showScore(); S.view = "chat"; render();
+  $("login").hidden = true;
+  botSay("Hey " + (S.profile.me.name || "there") + "! Ask me anything in English about the lesson of " + fmt(S.date) + " — or type another date.", {icon:"chat"});
+  if (S.tut) $("msgs").scrollTop = 0;
+}
+function bootEA(){
+  lgErr("Carregando…"); $("lgErr").classList.remove("bad");
+  EA.onAuth((u, err) => {
+    if (err){ lgErr(err); return; }
+    if (!u){ hydrated = null; $("login").hidden = false; lgErr(""); return; }
+    if (hydrated === u.uid) return;
+    hydrated = u.uid; hydrate(u).catch(e => { console.warn(e); $("login").hidden = true; });
+  });
+}
+if (window.EA) bootEA(); else window.addEventListener("ea-ready", bootEA, {once:true});
+setTimeout(() => { if (!window.EA) lgErr("Não consegui carregar o app. Confira a internet e recarregue a página."); }, 12000);
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("../../sw.js").catch(() => {});
+
+}
+</script>
+</body>
+</html>
