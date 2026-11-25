@@ -11,7 +11,7 @@ export const firebaseConfig = {
 // UID do administrador (aparece na central admin na primeira vez que você entra).
 export const ADMIN_UIDS = ["GDlCUy3WvYYXGasJxpFa6tWCm1S2"];
 // Modelo de IA (Gemini pelo Firebase AI Logic, plano Spark) e limite diário por pessoa.
-export const AI_MODEL = "gemini-2.5-flash";
+export const AI_MODEL = "gemini-3.5-flash-lite";
 export const AI_DAILY_LIMIT = 60;
 // Chave do site do reCAPTCHA (App Check / Fraud Defense). Deixe vazio até configurar.
 export const RECAPTCHA_KEY = "6LdPmzIuAAAAAIcWtV4CU7YhMtP8g1dVsIZi3yJW";

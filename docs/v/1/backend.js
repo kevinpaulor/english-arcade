@@ -30,18 +30,31 @@ async function getAIInst() {
   return aiInst;
 }
 // Se o modelo principal falhar (ex.: aposentado), tenta os próximos e guarda o que funcionou.
-const CHAT_MODELS = [AI_MODEL, "gemini-flash-latest", "gemini-3-flash-preview", "gemini-2.5-flash-lite"].filter((x, i, a) => x && a.indexOf(x) === i);
-let chatModelOk = null;
+// Flash-Lite: o mais rápido e com a maior cota grátis (cerca de 500 pedidos/dia no plano grátis).
+const CHAT_MODELS = [AI_MODEL, "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-flash-latest"].filter((x, i, a) => x && a.indexOf(x) === i);
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+let chatModelOk = CHAT_MODELS.includes(lsGet("ea-ai-model")) ? lsGet("ea-ai-model") : null;
 async function getModel(name) {
   const inst = await getAIInst();
   // Sem "pensar" antes de responder: a resposta de texto começa a aparecer bem mais rápido.
   const generationConfig = { maxOutputTokens: 700, temperature: 0.7 };
   if (/2\.5/.test(name)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  // Os Flash-Lite 3.x já respondem sem "pensar" (nível mínimo) por padrão.
   return aiMod.getGenerativeModel(inst, { model: name, generationConfig });
 }
+// Conta de usos da IA no dia: lê do Firestore uma vez e depois conta aqui (resposta mais rápida).
+const aiUsed = { day: "", n: 0 };
+async function aiUsedToday(dref) {
+  if (aiUsed.day !== today()) {
+    aiUsed.day = today(); aiUsed.n = 0;
+    try { const d = await getDoc(dref); if (d.exists()) aiUsed.n = d.data().ai || 0; } catch (e) {}
+  }
+  return aiUsed.n;
+}
 // Voz IA: modelos de texto-para-fala do Gemini (o primeiro que funcionar fica guardado).
-const TTS_MODELS = ["gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"];
-let ttsModelOk = null;
+const TTS_MODELS = ["gemini-3.8-flash-lite-tts", "gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"];
+let ttsModelOk = TTS_MODELS.includes(lsGet("ea-tts-model")) ? lsGet("ea-tts-model") : null;
 async function ttsOnce(name, text, lang) {
   const inst = await getAIInst();
   const mdl = aiMod.getGenerativeModel(inst, {
@@ -172,35 +185,34 @@ const EA = {
   async ask(prompt, onText) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const dref = doc(db, "users", u.uid, "days", today());
-    try { const d = await getDoc(dref); if (d.exists() && (d.data().ai || 0) >= AI_DAILY_LIMIT) throw { code: "limit" }; }
-    catch (e) { if (e && e.code === "limit") throw e; }
+    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
     let text = "", ok = false, last = null;
-    for (const name of (chatModelOk ? [chatModelOk] : CHAT_MODELS)) {
+    const order = chatModelOk ? [chatModelOk, ...CHAT_MODELS.filter(x => x !== chatModelOk)] : CHAT_MODELS;
+    for (const name of order) {
       text = "";
       try {
         const m = await getModel(name);
         const r = await m.generateContentStream(prompt);
         for await (const ch of r.stream) { text += ch.text(); if (onText) onText({ text }); }
-        chatModelOk = name; ok = true; break;
+        chatModelOk = name; lsSet("ea-ai-model", name); ok = true; break;
       } catch (e) { console.warn("ai", name, e); last = e; if (text) break; }
     }
     if (!ok) throw { code: "ai", message: String(last && last.message || last) };
-    try { await setDoc(dref, { ai: increment(1) }, { merge: true }); } catch (e) {}
+    aiUsed.n++; setDoc(dref, { ai: increment(1) }, { merge: true }).catch(() => {});
     return { text };
   },
   async speak(text, lang) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const dref = doc(db, "users", u.uid, "days", today());
-    try { const d = await getDoc(dref); if (d.exists() && (d.data().ai || 0) >= AI_DAILY_LIMIT) throw { code: "limit" }; }
-    catch (e) { if (e && e.code === "limit") throw e; }
+    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
     await getAIInst();
     let out = null, last = null;
-    for (const name of (ttsModelOk ? [ttsModelOk] : TTS_MODELS)) {
-      try { out = await ttsOnce(name, String(text).slice(0, 1500), lang); ttsModelOk = name; break; }
+    for (const name of (ttsModelOk ? [ttsModelOk, ...TTS_MODELS.filter(x => x !== ttsModelOk)] : TTS_MODELS)) {
+      try { out = await ttsOnce(name, String(text).slice(0, 1500), lang); ttsModelOk = name; lsSet("ea-tts-model", name); break; }
       catch (e) { last = e; console.warn("tts", name, e); }
     }
     if (!out) throw { code: "tts", message: String(last && last.message || last) };
-    try { await setDoc(dref, { ai: increment(1) }, { merge: true }); } catch (e) {}
+    aiUsed.n++; setDoc(dref, { ai: increment(1) }, { merge: true }).catch(() => {});
     return out;
   },
   async feedback(text) {

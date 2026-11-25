@@ -135,7 +135,11 @@ main[hidden],.chat[hidden]{display:none}
 .inrow textarea[hidden]{display:none}
 .wave{flex:1;height:46px;display:flex;align-items:center;gap:10px;border:2px solid var(--pink);background:#1e1732;padding:0 10px}
 .wave[hidden]{display:none}
-.wave canvas{flex:1;height:30px;min-width:0}
+.wave{padding:0 8px 0 4px;gap:8px}
+.wmid{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.wave canvas{width:100%;height:16px;display:block}
+.wlive{font-size:13px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left;opacity:.85}
+.wtrash{flex:none;width:34px;height:34px;display:grid;place-items:center;background:none;border:2px solid rgba(255,255,255,.35);padding:0}
 .wave span{font-size:11px;opacity:.8}
 .send,.mic{width:50px;height:46px;background:none;border:2px solid #fff;display:grid;place-items:center;padding:0}
 .mic{border-color:var(--line)}
@@ -262,11 +266,11 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
     <form class="inrow" id="form">
       <label for="msg" class="sr">Mensagem</label>
       <textarea id="msg" rows="1" autocomplete="off" placeholder="Type in English…"></textarea>
-      <div class="wave" id="wave" hidden><canvas id="waveC"></canvas><span id="waveT" class="px">0:00</span></div>
+      <div class="wave" id="wave" hidden><button type="button" class="wtrash" id="waveDel" aria-label="Descartar gravação"></button><div class="wmid"><canvas id="waveC"></canvas><span class="wlive" id="waveLive">Ouvindo…</span></div><span id="waveT" class="px">0:00</span></div>
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 25/11 19:45</div>
+    <div class="ver" id="ver">v1 · build 25/11 19:55</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -329,6 +333,7 @@ const ICONS = {
   down:["...ww...","...ww...","...ww...","wwwwwwww",".wwwwww.","..wwww..","...ww...","wwwwwwww"],
   gear:["...ww...",".w.ww.w.","..wwww..","wwww.www","www.wwww","..wwww..",".w.ww.w.","...ww..."],
   help:["..wwww..",".ww..ww.",".....ww.","....ww..","...ww...","...ww...","........","...ww..."],
+  trash:["..wwww..","wwwwwwww","........",".wwwwww.",".w.ww.w.",".w.ww.w.",".w.ww.w.",".wwwwww."],
   stop:["........",".wwwwww.",".wwwwww.",".wwwwww.",".wwwwww.",".wwwwww.",".wwwwww.","........"],
   mic:["...ww...","..wwww..","..wwww..","..wwww..","w.wwww.w",".wwwwww.","...ww...","..wwww.."],
   send:[".........ww",".......wwww",".....wwwww.","...wwwwwww.","wwwwwwwwww.","..wwww.ww..","...ww..w...","...w......."],
@@ -1172,7 +1177,7 @@ async function speakText(text, btn, isMe){
 }
 document.addEventListener("visibilitychange", () => { if (document.hidden) stopSpeech(); });
 /* ---------- microfone: grava, mostra a onda da voz, para e deixa o texto para revisar ---------- */
-let srRec = null, recFin = "", recTmp = "", sendAfterRec = false, waveStream = null, waveCtx = null, waveRaf = null, waveT0 = 0, waveLv = [], noWave = false, lastResultAt = 0, recStartedWithWave = false;
+let srRec = null, recFin = "", recTmp = "", sendAfterRec = false, discardRec = false, waveStream = null, waveCtx = null, waveRaf = null, waveT0 = 0, waveLv = [], noWave = false, lastResultAt = 0, recStartedWithWave = false;
 function setMic(){
   const m = $("mic");
   m.classList.toggle("srRec", listening);
@@ -1202,7 +1207,10 @@ function waveLoop(an, buf){
 }
 async function startWave(){
   waveLv = []; waveT0 = Date.now(); clearTimeout(waveRaf);
-  if (noWave || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ waveLoop(null); return; }
+  // No celular, a onda "de verdade" disputa o microfone com o reconhecimento de voz e ele para de transcrever.
+  // Lá a onda segue o ritmo da fala detectada; no computador usa o microfone de verdade.
+  const touch = matchMedia("(pointer:coarse)").matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
+  if (touch || noWave || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ waveLoop(null); return; }
   try {
     waveStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}});
     if (!listening){ stopWave(); return; }
@@ -1226,17 +1234,22 @@ function startRec(keep){
     let tmp = ""; lastResultAt = Date.now();
     for (let i = ev.resultIndex; i < ev.results.length; i++){ const r = ev.results[i]; if (r.isFinal) recFin += r[0].transcript + " "; else tmp += r[0].transcript; }
     recTmp = tmp;
+    const live = (recFin + recTmp).replace(/\s+/g, " ").trim();
+    $("waveLive").textContent = live ? "\u200E" + live + "\u200E" : "Ouvindo…";
   };
+  srRec.onsoundstart = srRec.onspeechstart = () => { lastResultAt = Date.now(); };
   srRec.onerror = ev => {
     // Alguns celulares não deixam o reconhecimento e a onda usarem o microfone juntos: desliga a onda e tenta de novo.
+    srRec._err = ev.error;
     if (recStartedWithWave && !noWave && ev.error === "audio-capture"){ noWave = true; stopWave(); const old = srRec; old.onend = null; try { startRec(true); } catch(e) {} waveLoop(null); return; }
   };
   srRec.onend = () => {
     if (srRec && srRec._restart) return;
     listening = false; stopWave(); setMic();
+    if (discardRec){ discardRec = false; sendAfterRec = false; recFin = recTmp = ""; copyTag("GRAVAÇÃO DESCARTADA"); return; }
     const text = (recFin + recTmp).replace(/\s+/g, " ").trim();
-    $("msg").value = text; growMsg();
-    if (text) voiceTurn = true;
+    if (!text && !$("msg").value.trim()) copyTag(srRec && srRec._err === "not-allowed" ? "LIBERE O MICROFONE NO NAVEGADOR" : "NÃO OUVI NADA. TENTE DE NOVO");
+    if (text){ $("msg").value = text; growMsg(); voiceTurn = true; }
     if (sendAfterRec && text){ sendAfterRec = false; submitNow(); }
     sendAfterRec = false;
   };
@@ -1246,9 +1259,11 @@ $("mic").onclick = () => {
   if (listening){ try { srRec && srRec.stop(); } catch(e) {} return; }
   stopSpeech();
   if (!SR) return;
-  try { listening = true; recStartedWithWave = false; setMic(); startRec(false); startWave(); }
+  try { listening = true; discardRec = false; recStartedWithWave = false; $("waveLive").textContent = "Ouvindo…"; setMic(); startRec(false); startWave(); }
   catch(e) { listening = false; setMic(); $("mic").hidden = true; }
 };
+$("waveDel").innerHTML = pix("trash",2);
+$("waveDel").onclick = () => { discardRec = true; try { srRec && srRec.abort ? srRec.abort() : srRec.stop(); } catch(e) {} };
 $("msg").addEventListener("input", () => { growMsg(); if (!$("msg").value.trim()) voiceTurn = false; });
 $("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); if (!listening) submitNow(); } });
 
