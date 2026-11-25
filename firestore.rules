@@ -22,6 +22,17 @@ service cloud.firestore {
       match /private/{docId} {
         allow read, write: if isMe(uid);
       }
+      // Meus cadernos: páginas fotografadas pelo aluno (só a própria pessoa).
+      match /notebooks/{nbId} {
+        allow read, write: if isMe(uid);
+      }
+      match /pages/{pageId} {
+        allow read, write: if isMe(uid);
+      }
+      match /pageimg/{pageId} {
+        allow read, delete: if isMe(uid);
+        allow create, update: if isMe(uid) && request.resource.data.img is string && request.resource.data.img.size() < 900000;
+      }
       match /chats/{chatId} {
         allow read, write: if isMe(uid) && (request.resource == null || request.resource.data.size() < 60);
       }

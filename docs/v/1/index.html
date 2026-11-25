@@ -36,6 +36,20 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 main{flex:1;overflow-y:auto;padding:16px}
 main[hidden],.chat[hidden]{display:none}
 .lead{margin:0 0 14px;opacity:.8}
+.phead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.camb{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;font-size:7px;background:none;border:2px solid #fff}
+.camgo{display:inline-flex;align-items:center;gap:8px;min-height:44px}
+.viewer{position:fixed;inset:0;z-index:80;background:#0b0616;display:flex;flex-direction:column}
+.vtop,.vnav{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#160d2b;font-size:9px}
+.vnav small{font-size:12px;opacity:.6}
+.vbtn{min-width:44px;height:40px;background:none;border:2px solid #fff;font-size:10px}
+.vbtn[hidden]{visibility:hidden;display:inline-block}
+.vbody{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;-webkit-overflow-scrolling:touch}
+.vbody img{width:100%;max-width:820px;height:auto;display:block;cursor:zoom-in;background:#fff}
+.vbody.zoom{display:block}
+.vbody.zoom img{width:220%;max-width:none;cursor:zoom-out}
+.vbody.loading::before{content:"CARREGANDO…";margin:40px auto;font-size:12px;opacity:.7}
+
 /* calendar */
 .card{background:var(--panel);border:2px solid var(--line);padding:12px;margin-bottom:16px}
 .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
@@ -270,12 +284,13 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 25/11 19:31</div>
+    <div class="ver" id="ver">v1 · build 25/11 19:43</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
 <script type="module" src="backend.js"></script>
 <script src="lessons.js"></script>
+<script src="../../scans/scans.js"></script>
 <script>
 {
 /* ---------- data ---------- */
@@ -334,6 +349,7 @@ const ICONS = {
   gear:["...ww...",".w.ww.w.","..wwww..","wwww.www","www.wwww","..wwww..",".w.ww.w.","...ww..."],
   help:["..wwww..",".ww..ww.",".....ww.","....ww..","...ww...","...ww...","........","...ww..."],
   trash:["..wwww..","wwwwwwww","........",".wwwwww.",".w.ww.w.",".w.ww.w.",".w.ww.w.",".wwwwww."],
+  cam:["..www...","wwwwwwww","w..ww..w","w.w..w.w","w.w..w.w","w..ww..w","wwwwwwww","........"],
   stop:["........",".wwwwww.",".wwwwww.",".wwwwww.",".wwwwww.",".wwwwww.",".wwwwww.","........"],
   mic:["...ww...","..wwww..","..wwww..","..wwww..","w.wwww.w",".wwwwww.","...ww...","..wwww.."],
   send:[".........ww",".......wwww",".....wwwww.","...wwwwwww.","wwwwwwwwww.","..wwww.ww..","...ww..w...","...w......."],
@@ -355,9 +371,143 @@ $("mic").innerHTML = pix("mic",3); $("sendBtn").innerHTML = pix("send",3);
 
 /* ---------- helpers ---------- */
 const topicPages = k => P.filter(p => p.k === k);
-const ctxPages = () => S.ctx === "nb" ? [topicPages(S.topic)[S.tp]] : (byDate[S.date] || []);
+const ctxPages = () => { const r = S.ctx === "nb" && T[S.topic] ? [topicPages(S.topic)[S.tp]].filter(Boolean) : (byDate[S.date] || []); return r.length ? r : (byDate[S.date] || byDate[DATES[DATES.length-1]]); };
 const ctxColor = () => T[ctxPages()[0].k].c;
-const ctxLabel = () => S.ctx === "nb" ? T[S.topic].n : "Aula de " + fmt(S.date);
+const ctxLabel = () => S.ctx === "nb" && T[S.topic] ? T[S.topic].n : "Aula de " + fmt(S.date);
+/* ---------- páginas originais (fotos) e MEUS CADERNOS ---------- */
+const SCANS = window.SCANS || {};
+const SCAN_DIR = "../../scans/";
+function rebuildIndex(){
+  P.forEach((p, i) => p.i = i);
+  Object.keys(byDate).forEach(k => delete byDate[k]);
+  P.forEach(p => (byDate[p.d] = byDate[p.d] || []).push(p));
+}
+const NB_COLORS = ["#ff8a3c","#3ddc6b","#29e6ff","#ffd84a","#ff3ea5","#b46bff","#ff6b6b","#5b8cff"];
+const mineKeys = () => Object.keys(T).filter(k => T[k].mine);
+function clearMine(){
+  for (let i = P.length - 1; i >= 0; i--) if (P[i].mine) P.splice(i, 1);
+  mineKeys().forEach(k => delete T[k]);
+  rebuildIndex();
+}
+const cleanS = (x, n) => typeof x === "string" ? x.trim().slice(0, n) : "";
+const cleanA = (a, n, m) => Array.isArray(a) ? a.filter(x => typeof x === "string" && x.trim()).slice(0, n).map(x => x.trim().slice(0, m)) : [];
+const cleanV = a => Array.isArray(a) ? a.filter(x => Array.isArray(x) && typeof x[0] === "string").slice(0, 20).map(x => [x[0].slice(0, 60), String(x[1] || "").slice(0, 80)]) : [];
+const isDay = d => typeof d === "string" && /^\d{4}-\d\d-\d\d$/.test(d) && !isNaN(new Date(d + "T12:00:00"));
+function addNotebook(nb){ T["u_" + nb.id] = {n: nb.title, c: nb.color, mine: true, id: nb.id, created: nb.created || 0}; }
+function addMinePage(pg){
+  if (!T["u_" + pg.nb]) return null;
+  const p = {mine: true, id: pg.id, nb: pg.nb, k: "u_" + pg.nb, d: isDay(pg.d) ? pg.d : todayKey(), t: cleanS(pg.t, 80) || "Página", s: cleanS(pg.s, 400),
+    f: cleanA(pg.f, 14, 240), v: cleanV(pg.v), g: cleanS(pg.g, 300), fixes: cleanA(pg.fixes, 8, 160), created: pg.created || 0};
+  P.push(p); return p;
+}
+function todayKey(){ const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+async function loadMine(){
+  clearMine();
+  if (!(window.EA && EA.user() && EA.loadNotebooks)) return;
+  const r = await EA.loadNotebooks();
+  r.notebooks.sort((a, b) => (a.created || 0) - (b.created || 0)).forEach(addNotebook);
+  r.pages.sort((a, b) => (a.created || 0) - (b.created || 0)).forEach(addMinePage);
+  rebuildIndex();
+  if (S.view === "toc" || S.view === "day") render();
+}
+
+/* visualizador de fotos */
+function openViewer(items, start){
+  let i = start || 0, zoom = false;
+  const v = el("div","viewer"); v.setAttribute("role","dialog"); v.setAttribute("aria-label","Página do caderno");
+  const top = el("div","vtop"), lab = el("span","px"), close = el("button","vbtn px","✕");
+  close.setAttribute("aria-label","Fechar"); top.append(lab, close);
+  const body = el("div","vbody"), img = el("img"); img.alt = "Página do caderno"; body.append(img);
+  const nav = el("div","vnav"), a = el("button","vbtn px","◀"), b = el("button","vbtn px","▶"), hint = el("small",null,"Toque na foto para ampliar");
+  a.setAttribute("aria-label","Foto anterior"); b.setAttribute("aria-label","Próxima foto");
+  nav.append(a, hint, b); v.append(top, body, nav); document.body.append(v);
+  const show = async () => {
+    const it = items[i]; lab.textContent = (it.label || "PÁGINA") + (items.length > 1 ? "  " + (i + 1) + "/" + items.length : "");
+    a.disabled = i === 0; b.disabled = i === items.length - 1; a.hidden = b.hidden = items.length < 2;
+    img.removeAttribute("src"); body.classList.add("loading");
+    let src = it.src;
+    if (!src && it.load){ try { src = await it.load(); } catch(e) { src = null; } }
+    body.classList.remove("loading");
+    if (src) img.src = src; else { img.alt = "Foto não encontrada"; }
+    body.scrollTop = 0; body.scrollLeft = 0;
+  };
+  img.onclick = () => { zoom = !zoom; body.classList.toggle("zoom", zoom); };
+  a.onclick = () => { if (i > 0){ i--; show(); } }; b.onclick = () => { if (i < items.length - 1){ i++; show(); } };
+  const end = () => { v.remove(); document.removeEventListener("keydown", key); };
+  const key = e => { if (e.key === "Escape") end(); if (e.key === "ArrowLeft") a.onclick(); if (e.key === "ArrowRight") b.onclick(); };
+  close.onclick = end; document.addEventListener("keydown", key);
+  show();
+}
+function scanItems(p){
+  if (p.mine) return [{label: "SUA FOTO", load: () => EA.pageImage(p.id)}];
+  return (SCANS[p.d] || []).map((f, j, all) => ({label: "CADERNO " + short(p.d), src: SCAN_DIR + f}));
+}
+
+/* fotografar uma página */
+function compressImage(file, maxSide, quality){
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, maxSide / Math.max(im.width, im.height));
+      const c = document.createElement("canvas"); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg", quality));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error("img")); };
+    im.src = url;
+  });
+}
+function pickPhotos(nbId){
+  if (!(window.EA && EA.user())){ S.view = "chat"; render(); botSay("Entre numa conta (ou use sem conta) para fotografar páginas: a IA precisa de login.", {icon:"help"}); return; }
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.multiple = true;
+  inp.onchange = () => { const files = [...inp.files].slice(0, 6); if (files.length) readPhotos(files, nbId); };
+  inp.click();
+}
+async function readPhotos(files, nbId){
+  S.view = "chat"; render();
+  let nb = nbId ? T["u_" + nbId] : null, lastPage = null;
+  for (let n = 0; n < files.length; n++){
+    const box = botSay("Lendo a foto" + (files.length > 1 ? " " + (n + 1) + " de " + files.length : "") + "… isso leva alguns segundos.", {icon:"book"});
+    let big, thumb, res;
+    try { big = await compressImage(files[n], 1600, 0.82); thumb = await compressImage(files[n], 1100, 0.6); if (thumb.length > 850000) thumb = await compressImage(files[n], 800, 0.5); }
+    catch(e) { box.textContent = "Não consegui abrir essa imagem. Tente outra foto."; continue; }
+    try { res = await EA.readPage(big.split(",")[1], "image/jpeg"); }
+    catch(e) { box.textContent = e && e.code === "limit" ? "A IA chegou ao limite de hoje. Tente amanhã." : "Não consegui ler a foto agora. Tente de novo."; continue; }
+    if (!res || res.ok === false || !Array.isArray(res.phrases)){ box.textContent = "Não parece uma página de estudo. Tente de novo com a página inteira, reta e com boa luz."; continue; }
+    if (!nb){
+      const id = "n" + Date.now().toString(36);
+      const nbObj = {id, title: cleanS(res.notebook, 40) || cleanS(res.topic, 40) || "Meu caderno", color: NB_COLORS[mineKeys().length % NB_COLORS.length], created: Date.now()};
+      addNotebook(nbObj); nb = T["u_" + id];
+      try { await EA.saveNotebook(nbObj); } catch(e) { console.warn(e); }
+    }
+    const pg = {id: "p" + Date.now().toString(36) + n, nb: nb.id, d: isDay(res.date) ? res.date : todayKey(), t: res.title, s: res.summary, f: res.phrases, v: res.vocab, g: res.tip, fixes: res.fixes, created: Date.now()};
+    const p = addMinePage(pg); rebuildIndex();
+    let saved = true;
+    try { await EA.savePage(Object.assign({}, pg, {t: p.t, s: p.s, f: p.f, v: p.v, g: p.g, fixes: p.fixes, d: p.d}), thumb); } catch(e) { console.warn("savePage", e); saved = false; }
+    lastPage = p;
+    box.textContent = "";
+    box.append(pixEl("book",2), document.createTextNode(" Nova página em “" + nb.n + "”: " + p.t + "\n" + (p.s || "")));
+    if (p.fixes.length) box.append(document.createTextNode("\nCorrigi: " + p.fixes.join(" · ")));
+    if (!saved) box.append(document.createTextNode("\n(Não consegui salvar na sua conta: falta publicar as regras novas do Firebase. Por enquanto ela fica só até fechar o app.)"));
+    box._raw = box.textContent;
+  }
+  if (lastPage){
+    const k = lastPage.k, ps = topicPages(k);
+    S.ctx = "nb"; S.topic = k; S.tp = Math.max(0, ps.indexOf(lastPage));
+    render();
+    const more = el("div","more"), go = el("button","act main px","ABRIR O CADERNO"), ph = el("button","act px","VER A FOTO");
+    go.onclick = () => openTopic(k, lastPage.i); ph.onclick = () => openViewer(scanItems(lastPage), 0);
+    more.append(go, ph); $("msgs").append(more);
+    botSay("Ask me anything about this page — or try: make a question, a negative, or use another subject.", {icon:"chat"});
+  }
+}
+async function deleteMinePage(p){
+  try { await EA.deletePage(p.id); } catch(e) {}
+  const i = P.indexOf(p); if (i >= 0) P.splice(i, 1);
+  const left = topicPages(p.k);
+  if (!left.length){ try { await EA.deleteNotebook(p.nb); } catch(e) {} delete T[p.k]; rebuildIndex(); S.view = "toc"; S.ctx = "day"; render(); return; }
+  rebuildIndex(); S.tp = Math.min(S.tp, left.length - 1); render();
+}
 function people(){ return S.profile.people.map(p => p.name); }
 function personInfo(p){ const parts = []; if (p.role) parts.push(p.role); if (p.job) parts.push("profissão: " + p.job); if (p.places.length) parts.push("lugares: " + p.places.join(", ")); if (p.objects.length) parts.push("objetos: " + p.objects.join(", ")); if (p.actions.length) parts.push("ações: " + p.actions.join(", ")); const facts = S.profile.facts.filter(f => f.toLowerCase().includes(p.name.toLowerCase())); if (facts.length) parts.push(facts.join(" · ")); return p.name + (parts.length ? " — " + parts.join(" · ") : ""); }
 function worldText(){
@@ -447,7 +597,15 @@ function renderPage(p, showDate){
   box.style.boxShadow = "4px 4px 0 " + t.c;
   const chip = el("button","chip px", (showDate ? short(p.d) + " · " : "") + t.n.toUpperCase());
   chip.style.borderColor = t.c; chip.onclick = () => openTopic(p.k, p.i);
-  box.append(chip, el("h2","ptitle px",p.t), el("p","psum",p.s));
+  const head = el("div","phead"); head.append(chip);
+  const shots = scanItems(p);
+  if (shots.length){
+    const cam = el("button","camb px"); cam.append(pixEl("cam",2), document.createTextNode(p.mine ? " FOTO" : " PÁGINA" + (shots.length > 1 ? "S (" + shots.length + ")" : "")));
+    cam.setAttribute("aria-label", p.mine ? "Ver a foto da página" : "Ver a página do caderno");
+    cam.onclick = () => openViewer(shots, 0); head.append(cam);
+  }
+  box.append(head, el("h2","ptitle px",p.t), el("p","psum",p.s));
+  if (p.fixes && p.fixes.length){ const fx = el("div","tip"); fx.append(el("span","px","CORRIGIDO"), el("span",null,p.fixes.join(" · "))); box.append(fx); }
   box.append(el("div","sec px","FRASES"));
   const list = terms(p), budget = {n:4};
   p.f.forEach(f => { const r = el("div","phr"); r.append(phraseNode(f, list, t.c, budget)); box.append(r); });
@@ -461,7 +619,14 @@ function renderPage(p, showDate){
   talk.onclick = () => { S.view = "chat"; render(); botSay("Let's talk about \"" + p.t + "\". Ask me anything!", {icon:"chat"}); $("msg").focus(); };
   acts.append(talk);
   [["PERGUNTA","q"],["NEGATIVA","n"],["OUTRO SUJEITO","s"]].forEach(([l,k]) => { const b = el("button","act px",l); b.onclick = () => drill(p, k); acts.append(b); });
-  box.append(acts); return box;
+  box.append(acts);
+  if (p.mine){
+    const own = el("div","acts"), add = el("button","act px","+ PÁGINA (FOTO)"), del = el("button","act px","APAGAR PÁGINA");
+    add.onclick = () => pickPhotos(p.nb);
+    del.onclick = () => { if (del.dataset.ok){ deleteMinePage(p); return; } del.dataset.ok = "1"; del.textContent = "TOQUE DE NOVO PARA APAGAR"; setTimeout(() => { delete del.dataset.ok; del.textContent = "APAGAR PÁGINA"; }, 3000); };
+    own.append(add, del); box.append(own);
+  }
+  return box;
 }
 
 function renderCal(m){
@@ -509,9 +674,23 @@ function renderDay(m){
 }
 
 function renderToc(m){
+  m.append(el("h2","ptitle px","MEUS CADERNOS"));
+  m.append(el("p","lead","Fotografe uma página do seu caderno ou livro: eu leio, corrijo o inglês e crio um caderno para conversar sobre ela."));
+  const shot = el("button","act main px camgo"); shot.append(pixEl("cam",2), document.createTextNode(" FOTOGRAFAR PÁGINA"));
+  shot.onclick = () => pickPhotos(null); m.append(shot);
+  const mine = el("div","toc"); mine.style.margin = "12px 0 22px";
+  mineKeys().sort((a, b) => (T[a].created || 0) - (T[b].created || 0)).forEach(k => {
+    const ps = topicPages(k); if (!ps.length) return;
+    const b = el("button","trow"), i = el("i"); i.style.boxShadow = "3px 3px 0 " + T[k].c;
+    const tx = el("span"); tx.append(el("b",null,T[k].n), el("small",null, short(ps[0].d) + (ps.length > 1 ? " → " + short(ps[ps.length-1].d) : "")));
+    b.append(i, tx, el("span","px", ps.length + " PÁG"));
+    b.onclick = () => openTopic(k, ps[0].i); mine.append(b);
+  });
+  m.append(mine);
+  m.append(el("h2","ptitle px","CADERNO DAS AULAS"));
   m.append(el("p","lead","Cada assunto é um caderno. Toque para folhear."));
   const box = el("div","toc");
-  Object.keys(T).forEach(k => {
+  Object.keys(T).filter(k => !T[k].mine).forEach(k => {
     const ps = topicPages(k); if (!ps.length) return;
     const b = el("button","trow"), i = el("i"); i.style.boxShadow = "3px 3px 0 " + T[k].c;
     const tx = el("span"); tx.append(el("b",null,T[k].n), el("small",null, short(ps[0].d) + " → " + short(ps[ps.length-1].d)));
@@ -1438,7 +1617,8 @@ async function hydrate(u){
   KP = "ea:" + u.uid + ":";
   S.profile = normProfile(load("ea-profile", null)); S.level = load("ea-level","medium"); S.tut = load("ea-tut", true); S.voice = load("ea-voice","soft");
   S.seen = load("ea-seen", []); S.log = load("ea-log", []); S.drills = load("ea-drills", 0); S.score = load("ea-score", 0); S.sessions = load("ea-sessions", []); S.cur = null; S.hist = [];
-  const cloud = await EA.loadAll();
+  clearMine();
+  const [cloud] = await Promise.all([EA.loadAll(), loadMine().catch(e => console.warn("notebooks", e))]);
   if (cloud.profile) S.profile = normProfile(cloud.profile);
   const st = cloud.state;
   if (st){

@@ -215,6 +215,57 @@ const EA = {
     aiUsed.n++; setDoc(dref, { ai: increment(1) }, { merge: true }).catch(() => {});
     return out;
   },
+
+  // ---------- Meus cadernos (fotos de páginas do aluno) ----------
+  async readPage(b64, mime) {
+    const u = auth.currentUser; if (!u) throw { code: "auth" };
+    const dref = doc(db, "users", u.uid, "days", today());
+    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
+    const prompt = "This is a photo of a page from a student's English notebook, textbook or worksheet. The student is Brazilian.\n" +
+      "Read it carefully (handwriting included). Keep only the study content, and CORRECT every English mistake you find.\n" +
+      "Return ONLY JSON with these keys:\n" +
+      "{\"ok\": true, \"title\": \"short title of the page, max 6 words\", \"topic\": \"subject in Portuguese, max 3 words\", " +
+      "\"notebook\": \"suggested notebook name in Portuguese, max 4 words\", \"date\": \"YYYY-MM-DD if a date is written on the page, else empty\", " +
+      "\"summary\": \"1 or 2 sentences in Portuguese about what the page teaches\", " +
+      "\"phrases\": [\"up to 12 corrected English sentences or examples from the page\"], " +
+      "\"vocab\": [[\"English word or expression\", \"meaning in Portuguese, max 8 words\"]], " +
+      "\"tip\": \"one short study tip in Portuguese\", \"fixes\": [\"mistakes you corrected, as 'wrong → right', max 6\"]}\n" +
+      "If the photo is not a study page, return {\"ok\": false}.";
+    const order = chatModelOk ? [chatModelOk, ...CHAT_MODELS.filter(x => x !== chatModelOk)] : CHAT_MODELS;
+    let last = null;
+    for (const name of order) {
+      try {
+        const inst = await getAIInst();
+        const mdl = aiMod.getGenerativeModel(inst, { model: name, generationConfig: { responseMimeType: "application/json", maxOutputTokens: 2000, temperature: 0.2 } });
+        const r = await mdl.generateContent([{ text: prompt }, { inlineData: { data: b64, mimeType: mime || "image/jpeg" } }]);
+        let txt = r.response.text().trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+        const obj = JSON.parse(txt);
+        aiUsed.n++; setDoc(dref, { ai: increment(1) }, { merge: true }).catch(() => {});
+        return obj;
+      } catch (e) { console.warn("readPage", name, e); last = e; }
+    }
+    throw { code: "ai", message: String(last && last.message || last) };
+  },
+  async loadNotebooks() {
+    const u = auth.currentUser; if (!u) return { notebooks: [], pages: [] };
+    const out = { notebooks: [], pages: [] };
+    try {
+      const [a, b] = await Promise.all([getDocs(collection(db, "users", u.uid, "notebooks")), getDocs(collection(db, "users", u.uid, "pages"))]);
+      a.forEach(d => out.notebooks.push(Object.assign({ id: d.id }, d.data())));
+      b.forEach(d => out.pages.push(Object.assign({ id: d.id }, d.data())));
+    } catch (e) { console.warn("loadNotebooks", e); out.error = true; }
+    return out;
+  },
+  async saveNotebook(nb) { const u = auth.currentUser; if (!u) throw { code: "auth" }; const x = plain(nb); delete x.id; await setDoc(doc(db, "users", u.uid, "notebooks", nb.id), x); },
+  async savePage(pg, img) {
+    const u = auth.currentUser; if (!u) throw { code: "auth" };
+    const x = plain(pg); delete x.id;
+    await setDoc(doc(db, "users", u.uid, "pages", pg.id), x);
+    if (img) await setDoc(doc(db, "users", u.uid, "pageimg", pg.id), { img });
+  },
+  async pageImage(id) { const u = auth.currentUser; if (!u) return null; const d = await getDoc(doc(db, "users", u.uid, "pageimg", id)); return d.exists() ? d.data().img : null; },
+  async deletePage(id) { const u = auth.currentUser; if (!u) return; await deleteDoc(doc(db, "users", u.uid, "pages", id)); try { await deleteDoc(doc(db, "users", u.uid, "pageimg", id)); } catch (e) {} },
+  async deleteNotebook(id) { const u = auth.currentUser; if (!u) return; await deleteDoc(doc(db, "users", u.uid, "notebooks", id)); },
   async feedback(text) {
     const u = auth.currentUser; if (!u) throw "Entre na sua conta primeiro.";
     await addDoc(collection(db, "feedback"), { uid: u.uid, name: u.displayName || current.name || "", email: u.email || "", text: String(text).slice(0, 1500), ts: serverTimestamp(), status: "nova", reply: "" });
