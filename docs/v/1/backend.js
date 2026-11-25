@@ -22,13 +22,31 @@ if (RECAPTCHA_KEY) {
 }
 const auth = getAuth(app);
 const db = getFirestore(app);
-let model = null;
+let model = null, aiMod = null, aiInst = null;
+async function getAIInst() {
+  if (aiInst) return aiInst;
+  aiMod = await import("https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js");
+  aiInst = aiMod.getAI(app, { backend: new aiMod.GoogleAIBackend() });
+  return aiInst;
+}
 async function getModel() {
   if (model) return model;
-  const m = await import("https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js");
-  const ai = m.getAI(app, { backend: new m.GoogleAIBackend() });
-  model = m.getGenerativeModel(ai, { model: AI_MODEL });
+  model = aiMod.getGenerativeModel(await getAIInst(), { model: AI_MODEL });
   return model;
+}
+// Voz IA: modelos de texto-para-fala do Gemini (o primeiro que funcionar fica guardado).
+const TTS_MODELS = ["gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"];
+let ttsModelOk = null;
+async function ttsOnce(name, text, lang) {
+  const mdl = aiMod.getGenerativeModel(await getAIInst(), {
+    model: name,
+    generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } }, languageCode: lang } }
+  });
+  const r = await mdl.generateContent([{ text }]);
+  const parts = (((r.response.candidates || [])[0] || {}).content || {}).parts || [];
+  const p = parts.find(x => x.inlineData && x.inlineData.data);
+  if (!p) throw { code: "noaudio" };
+  return { data: p.inlineData.data, mime: p.inlineData.mimeType || "" };
 }
 
 const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
@@ -158,6 +176,21 @@ const EA = {
     } catch (e) { console.warn("ai", e); throw { code: "ai", message: String(e && e.message || e) }; }
     try { await setDoc(dref, { ai: increment(1) }, { merge: true }); } catch (e) {}
     return { text };
+  },
+  async speak(text, lang) {
+    const u = auth.currentUser; if (!u) throw { code: "auth" };
+    const dref = doc(db, "users", u.uid, "days", today());
+    try { const d = await getDoc(dref); if (d.exists() && (d.data().ai || 0) >= AI_DAILY_LIMIT) throw { code: "limit" }; }
+    catch (e) { if (e && e.code === "limit") throw e; }
+    await getAIInst();
+    let out = null, last = null;
+    for (const name of (ttsModelOk ? [ttsModelOk] : TTS_MODELS)) {
+      try { out = await ttsOnce(name, String(text).slice(0, 1500), lang || "en-US"); ttsModelOk = name; break; }
+      catch (e) { last = e; console.warn("tts", name, e); }
+    }
+    if (!out) throw { code: "tts", message: String(last && last.message || last) };
+    try { await setDoc(dref, { ai: increment(1) }, { merge: true }); } catch (e) {}
+    return out;
   },
   async feedback(text) {
     const u = auth.currentUser; if (!u) throw "Entre na sua conta primeiro.";
