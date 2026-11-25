@@ -1,12 +1,12 @@
 // Configuração pública do Firebase (estas chaves são públicas por natureza).
 // Cole aqui o bloco firebaseConfig do console do Firebase.
 export const firebaseConfig = {
-  apiKey: "COLE_AQUI",
-  authDomain: "COLE_AQUI.firebaseapp.com",
-  projectId: "COLE_AQUI",
-  storageBucket: "COLE_AQUI.firebasestorage.app",
-  messagingSenderId: "COLE_AQUI",
-  appId: "COLE_AQUI"
+  apiKey: "AIzaSyC8I45qwgFRUTIqRrDbx83sREQVf7z1Hus",
+  authDomain: "english-arcade-cced9.firebaseapp.com",
+  projectId: "english-arcade-cced9",
+  storageBucket: "english-arcade-cced9.firebasestorage.app",
+  messagingSenderId: "698700392290",
+  appId: "1:698700392290:web:6f8c27eeb64e28ca97ae3b"
 };
 // UID do administrador (aparece na central admin na primeira vez que você entra).
 export const ADMIN_UIDS = ["COLE_SEU_UID_AQUI"];
