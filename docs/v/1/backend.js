@@ -33,13 +33,15 @@ async function getAIInst() {
 const CHAT_MODELS = [AI_MODEL, "gemini-flash-latest", "gemini-3-flash-preview", "gemini-2.5-flash-lite"].filter((x, i, a) => x && a.indexOf(x) === i);
 let chatModelOk = null;
 async function getModel(name) {
-  return aiMod.getGenerativeModel(await getAIInst(), { model: name });
+  const inst = await getAIInst();
+  return aiMod.getGenerativeModel(inst, { model: name });
 }
 // Voz IA: modelos de texto-para-fala do Gemini (o primeiro que funcionar fica guardado).
 const TTS_MODELS = ["gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"];
 let ttsModelOk = null;
 async function ttsOnce(name, text, lang) {
-  const mdl = aiMod.getGenerativeModel(await getAIInst(), {
+  const inst = await getAIInst();
+  const mdl = aiMod.getGenerativeModel(inst, {
     model: name,
     generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } }, languageCode: lang } }
   });
