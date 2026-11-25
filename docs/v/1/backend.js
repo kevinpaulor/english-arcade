@@ -34,7 +34,10 @@ const CHAT_MODELS = [AI_MODEL, "gemini-flash-latest", "gemini-3-flash-preview", 
 let chatModelOk = null;
 async function getModel(name) {
   const inst = await getAIInst();
-  return aiMod.getGenerativeModel(inst, { model: name });
+  // Sem "pensar" antes de responder: a resposta de texto começa a aparecer bem mais rápido.
+  const generationConfig = { maxOutputTokens: 700, temperature: 0.7 };
+  if (/2\.5/.test(name)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  return aiMod.getGenerativeModel(inst, { model: name, generationConfig });
 }
 // Voz IA: modelos de texto-para-fala do Gemini (o primeiro que funcionar fica guardado).
 const TTS_MODELS = ["gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"];
