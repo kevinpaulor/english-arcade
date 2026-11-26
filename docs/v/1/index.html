@@ -48,6 +48,12 @@ main[hidden],.chat[hidden]{display:none}
 .swrow{display:flex;align-items:center;gap:8px;text-align:left;padding:8px;background:var(--panel);border:2px solid var(--line);font-size:17px}
 .swrow span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .swrow small{opacity:.6;font-size:13px}
+.day.pick{outline:3px solid #3ddc6b;outline-offset:1px}
+.calsel{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.calsel.on{padding:8px;border:2px solid #3ddc6b}
+.calsel.on>span{flex-basis:100%;font-size:9px;color:#3ddc6b}
+.delb{border-color:#ff3ea5 !important}
+.day{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .ref{display:inline;font-size:8px;padding:3px 6px;margin:0 2px;background:none;border:2px solid #29e6ff;color:#fff;vertical-align:middle;line-height:1.8}
 .chal{margin-top:8px;padding:8px 10px;border:2px dashed #ffd84a}
 .chalb{border-color:#ffd84a !important}
@@ -364,7 +370,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 13:11</div>
+    <div class="ver" id="ver">v1 · build 26/11 13:20</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -378,7 +384,9 @@ const T = window.TOPICS, P = window.PAGES;
 P.forEach((p, i) => p.i = i);
 const byDate = {};
 P.forEach(p => (byDate[p.d] = byDate[p.d] || []).push(p));
-const DATES = Object.keys(byDate).sort();
+let DATES = Object.keys(byDate).sort();
+let HIDDEN = new Set();  // aulas do caderno que ESTE usuário apagou do calendário (só para ele)
+const isHidden = p => !p.mine && HIDDEN.has(p.d);
 const MONTHS_EN = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
 const MONTHS = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
 const LVNAME = {simple:"FÁCIL", medium:"MÉDIO", native:"NATIVO"};
@@ -452,9 +460,9 @@ $("calBtn").innerHTML = pix("cal",3); $("setBtn").innerHTML = pix("gear",3); $("
 $("mic").innerHTML = pix("mic",3); $("sendBtn").innerHTML = pix("send",3);
 
 /* ---------- helpers ---------- */
-const topicPages = k => P.filter(p => p.k === k);
-const ctxPages = () => { const r = S.ctx === "nb" && T[S.topic] ? [topicPages(S.topic)[S.tp]].filter(Boolean) : (byDate[S.date] || []); return r.length ? r : (byDate[S.date] || byDate[DATES[DATES.length-1]]); };
-const ctxColor = () => S.ctx === "art" && S.art && S.art.paras ? "#29e6ff" : T[ctxPages()[0].k].c;
+const topicPages = k => P.filter(p => p.k === k && !isHidden(p));
+const ctxPages = () => { const r = S.ctx === "nb" && T[S.topic] ? [topicPages(S.topic)[S.tp]].filter(Boolean) : (byDate[S.date] || []); return r.length ? r : (byDate[S.date] || byDate[DATES[DATES.length-1]] || []); };
+const ctxColor = () => S.ctx === "art" && S.art && S.art.paras ? "#29e6ff" : (ctxPages()[0] && T[ctxPages()[0].k] ? T[ctxPages()[0].k].c : "#ff3ea5");
 const ctxLabel = () => S.ctx === "art" && S.art && S.art.paras ? "📰 " + S.art.title.slice(0, 50) + (S.art.lesson ? " · 🔗 " + short(S.art.lesson) : "") : S.ctx === "nb" && T[S.topic] ? topicName(S.topic) : (S.level !== "simple" ? "Lesson of " : "Aula de ") + fmt(S.date);
 /* ---------- páginas originais (fotos) e MEUS CADERNOS ---------- */
 const SCANS = window.SCANS || {};
@@ -462,7 +470,9 @@ const SCAN_DIR = "../../scans/";
 function rebuildIndex(){
   P.forEach((p, i) => p.i = i);
   Object.keys(byDate).forEach(k => delete byDate[k]);
-  P.forEach(p => (byDate[p.d] = byDate[p.d] || []).push(p));
+  P.forEach(p => { if (!isHidden(p)) (byDate[p.d] = byDate[p.d] || []).push(p); });
+  DATES = Object.keys(byDate).sort();
+  if (!byDate[S.date] && DATES.length) S.date = DATES[DATES.length - 1];
 }
 const NB_COLORS = ["#ff8a3c","#3ddc6b","#29e6ff","#ffd84a","#ff3ea5","#b46bff","#ff6b6b","#5b8cff"];
 const mineKeys = () => Object.keys(T).filter(k => T[k].mine);
@@ -726,6 +736,34 @@ function renderPage(p, showDate){
   return box;
 }
 
+/* calendário: segurar uma data seleciona (contorno verde); toque em outras para juntar; apagar só some para este usuário */
+const CALSEL = {on: false, days: new Set(), confirm: false};
+function calSelBar(){
+  const bar = el("div","calsel");
+  if (!CALSEL.on){
+    bar.append(el("small","hint",tr("Segure uma data para selecionar e apagar aulas do seu calendário.","Press and hold a date to select and delete lessons from your calendar.")));
+    if (HIDDEN.size){ const r = el("button","act px",tr("RESTAURAR AULAS APAGADAS (","RESTORE DELETED LESSONS (") + HIDDEN.size + ")"); r.onclick = () => { HIDDEN.clear(); store("ea-hidden", []); rebuildIndex(); persist(); copyTag(tr("AULAS RESTAURADAS","LESSONS RESTORED")); render(); }; bar.append(r); }
+    return bar;
+  }
+  const lesson = d => (byDate[d] || []).some(p => !p.mine);
+  const n = [...CALSEL.days].filter(lesson).length;
+  bar.classList.add("on");
+  bar.append(el("span","px",CALSEL.days.size + tr(" SELECIONADA" + (CALSEL.days.size > 1 ? "S" : ""), " SELECTED")));
+  const all = el("button","act px",tr("SELECIONAR TODAS","SELECT ALL"));
+  all.onclick = () => { DATES.forEach(d => { if (lesson(d)) CALSEL.days.add(d); }); render(); };
+  const del = el("button","act px delb", CALSEL.confirm ? tr("CONFIRMAR: APAGAR " + n,"CONFIRM: DELETE " + n) : tr("APAGAR","DELETE"));
+  del.onclick = () => {
+    if (!n){ copyTag(tr("SÓ AS SUAS PÁGINAS FOTOGRAFADAS: APAGUE DENTRO DO CADERNO","ONLY YOUR OWN PAGES: DELETE THEM INSIDE THE NOTEBOOK")); return; }
+    if (!CALSEL.confirm){ CALSEL.confirm = true; render(); return; }
+    CALSEL.days.forEach(d => { if (lesson(d)) HIDDEN.add(d); });
+    store("ea-hidden", [...HIDDEN]); CALSEL.on = false; CALSEL.days.clear(); CALSEL.confirm = false;
+    rebuildIndex(); persist(); copyTag(tr(n + " AULA(S) APAGADA(S)", n + " LESSON(S) DELETED")); render();
+  };
+  const cancel = el("button","act px",tr("CANCELAR","CANCEL"));
+  cancel.onclick = () => { CALSEL.on = false; CALSEL.days.clear(); CALSEL.confirm = false; render(); };
+  bar.append(all, del, cancel);
+  return bar;
+}
 function renderCal(m){
   const card = el("section","card");
   const [y, mo] = S.ym.split("-").map(Number);
@@ -747,12 +785,22 @@ function renderCal(m){
       b.classList.add("on");
       b.style.boxShadow = cols.map((c,i) => (3*(i+1)) + "px " + (3*(i+1)) + "px 0 " + c).join(",");
       b.setAttribute("aria-label", d + ": " + ps.map(p=>p.t).join("; "));
-      b.onclick = () => { S.date = key; S.ctx = "day"; render(); };
+      if (CALSEL.on && CALSEL.days.has(key)) b.classList.add("pick");
+      b.onclick = () => {
+        if (b._lp){ b._lp = false; return; }
+        if (CALSEL.on){ CALSEL.days.has(key) ? CALSEL.days.delete(key) : CALSEL.days.add(key); if (!CALSEL.days.size) CALSEL.on = false; render(); return; }
+        S.date = key; S.ctx = "day"; render();
+      };
+      let lpT = null;
+      b.addEventListener("pointerdown", () => { clearTimeout(lpT); lpT = setTimeout(() => { b._lp = true; CALSEL.on = true; CALSEL.days.add(key); try { navigator.vibrate && navigator.vibrate(30); } catch(e) {} render(); }, 550); });
+      ["pointerup","pointerleave","pointercancel","pointermove"].forEach(ev => b.addEventListener(ev, e => { if (ev === "pointermove" && e.pointerType === "mouse") return; clearTimeout(lpT); }));
+      b.addEventListener("contextmenu", e => e.preventDefault());
     } else { b.disabled = true; b.setAttribute("aria-label", d + ": sem anotação"); }
     if (key === S.date) b.classList.add("sel");
     g.append(b);
   }
   card.append(g);
+  card.append(calSelBar());
   const go = el("form","go");
   const inp = el("input"); inp.id = "dateIn"; inp.placeholder = tr("dd/mm/aaaa","dd/mm/yyyy"); inp.inputMode = "numeric"; inp.setAttribute("aria-label","Digite uma data");
   go.append(inp, el("button","gobtn px",tr("IR","GO")));
@@ -1612,6 +1660,7 @@ function followUp(label, mode, about){ if (S.busy) return; userSay(label); S.his
 /* ---------- Claude ---------- */
 function lessonContext(){
   if (S.ctx === "art" && S.art && S.art.paras) return "ARTICLE he is reading in the app: \"" + S.art.title + "\"" + (S.art.source ? " (" + S.art.source + ")" : "") + "\n" + S.art.paras.join("\n").slice(0, 6000) + "\nTalk about this article: its ideas, vocabulary and expressions. Quote short bits of it when explaining." + (S.art.lesson && byDate[S.art.lesson] ? "\nHe linked it to his lesson of " + short(S.art.lesson) + " — connect the article with this lesson when it helps:\n" + byDate[S.art.lesson].filter(p => !p.mine).map(p => "• " + p.t + " — Phrases: " + p.f.slice(0, 8).join(" | ") + " — Vocabulary: " + (p.v || []).map(v => v[0]).join(", ")).join("\n") : "");
+  if (!ctxPages().length) return "(No lesson selected — free conversation. Talk about his life, his interests and everyday English.)";
   return ctxPages().map(p => "• " + short(p.d) + " — " + p.t + " (" + T[p.k].n + ")\n  Phrases: " + p.f.join(" | ") + "\n  Vocabulary: " + (p.v||[]).map(v=>v[0]+" = "+v[1]).join("; ") + (p.g ? "\n  Tip: " + p.g : "")).join("\n");
 }
 const LEVEL_RULE = {simple:"SIMPLE level: short sentences and basic words (A2)", medium:"MEDIUM level: clear, natural English (B1-B2)", native:"NATIVE level: idiomatic, the way a native speaker would say it (C1)"};
@@ -2071,7 +2120,7 @@ $("calBtn").onclick = () => { S.view = "day"; S.cal = true; render(); };
 $("setBtn").onclick = () => { S.view = "settings"; render(); };
 $("tutBtn").onclick = () => { S.tut = !S.tut; store("ea-tut", S.tut); if (S.tut){ S.view = "chat"; } render(); if (S.tut) $("msgs").scrollTop = 0; };
 
-function stateObj(){ return {score:S.score, drills:S.drills, seen:S.seen, level:S.level, voice:S.voice, voiceSet:!!load("ea-voice-set", false), tut:S.tut, msgs:S.log.filter(x => x.r === "u").length, log:S.log.slice(-120), upd:Date.now()}; }
+function stateObj(){ return {hidden:[...HIDDEN], score:S.score, drills:S.drills, seen:S.seen, level:S.level, voice:S.voice, voiceSet:!!load("ea-voice-set", false), tut:S.tut, msgs:S.log.filter(x => x.r === "u").length, log:S.log.slice(-120), upd:Date.now()}; }
 function saveProfile(){
   store("ea-profile", S.profile);
   if (window.EA && EA.user()){ clearTimeout(saveTimer); saveTimer = setTimeout(() => { EA.saveProfile(S.profile).catch(e => console.warn(e)); }, 600); }
@@ -2216,6 +2265,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-27a", d:"26/11", pt:["Calendário: segure uma data para selecionar e apagar aulas (só para você). Dá para restaurar depois"], en:["Calendar: press and hold a date to select and delete lessons (only for you). You can restore them later"]},
   {id:"2026-11-26f", d:"26/11", pt:["NATIVO e MÉDIO sem nenhum português: configurações, EU, PESSOAL, exportar, cadernos e palavras tocadas"], en:["NATIVE and MEDIUM with no Portuguese at all: settings, ME, PERSONAL, export, notebooks and tapped words"]},
   {id:"2026-11-26e", d:"26/11", pt:["Dicionário de inglês dentro do app: ao tocar numa palavra a definição aparece na hora, sem esperar a IA"], en:["English dictionary built into the app: tap a word and the definition shows instantly, no waiting for the AI"]},
   {id:"2026-11-26d", d:"26/11", pt:["Cada tema tem sua própria conversa: a IA não mistura mais matéria, aula e caderno","Divisor no chat mostra quando o assunto muda, com botão ABRIR","Toque no tema no topo (▾) para trocar entre os temas recentes"], en:["Each topic has its own conversation: the tutor no longer mixes article, lesson and notebook","A divider in the chat shows when the topic changes, with an OPEN button","Tap the topic at the top (▾) to switch between recent topics"]},
@@ -2259,7 +2309,7 @@ function hideSplash(){
 async function hydrate(u){
   KP = "ea:" + u.uid + ":";
   S.profile = normProfile(load("ea-profile", null)); S.level = load("ea-level","medium"); S.tut = load("ea-tut", true); S.voice = load("ea-voice","device");
-  S.seen = load("ea-seen", []); S.log = load("ea-log", []); S.drills = load("ea-drills", 0); S.score = load("ea-score", 0); S.sessions = load("ea-sessions", []); S.cur = null; S.hist = []; S.arts = load("ea-arts", []); S.art = null;
+  S.seen = load("ea-seen", []); S.log = load("ea-log", []); S.drills = load("ea-drills", 0); S.score = load("ea-score", 0); S.sessions = load("ea-sessions", []); S.cur = null; S.hist = []; S.arts = load("ea-arts", []); S.art = null; HIDDEN = new Set(load("ea-hidden", []));
   clearMine();
   const [cloud] = await Promise.all([EA.loadAll(), loadMine().catch(e => console.warn("notebooks", e))]);
   if (cloud.profile) S.profile = normProfile(cloud.profile);
@@ -2268,6 +2318,7 @@ async function hydrate(u){
     if (typeof st.score === "number") S.score = Math.max(S.score, st.score);
     if (typeof st.drills === "number") S.drills = Math.max(S.drills, st.drills);
     (st.seen || []).forEach(d => { if (!S.seen.includes(d)) S.seen.push(d); });
+    if (Array.isArray(st.hidden)){ st.hidden.forEach(d => typeof d === "string" && HIDDEN.add(d)); store("ea-hidden", [...HIDDEN]); rebuildIndex(); }
     if (st.level) S.level = st.level; if (st.voice && st.voiceSet) S.voice = st.voice; if (typeof st.tut === "boolean") S.tut = st.tut;
     if (Array.isArray(st.log) && st.log.length > S.log.length) S.log = st.log;
   }
