@@ -247,7 +247,7 @@ const EA = {
     if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
     const prompt = "Open this web page: " + String(url).slice(0, 500) + "\n" +
       "The user wants to read it inside an English-learning reader app. Return exactly this format and nothing else:\n" +
-      "TITLE: <the headline>\nSOURCE: <the site or publication name>\nTEXT:\n<the main article body, paragraph by paragraph as written on the page, separated by blank lines. Skip menus, ads, photo captions, related links and comments.>\n" +
+      "TITLE: <the real headline of the article — never site menu text such as 'Skip to content', 'Menu' or 'Sign in'>\nSOURCE: <the site or publication name>\nTEXT:\n<the main article body, paragraph by paragraph as written on the page, separated by blank lines. Skip menus, ads, photo captions, related links and comments.>\n" +
       "If you cannot open the page or it has no article, return only the word ERROR.";
     const order = [chatModelOk, "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.6-flash"].filter((x, i, a) => x && a.indexOf(x) === i);
     let last = null;
@@ -263,6 +263,25 @@ const EA = {
       } catch (e) { console.warn("readUrl", name, e); last = e; if (e && e.code === "nopage") break; }
     }
     throw { code: (last && last.code) || "ai", message: String(last && last.message || last) };
+  },
+  async articleMeta(text) {
+    const u = auth.currentUser; if (!u) throw { code: "auth" };
+    const dref = doc(db, "users", u.uid, "days", today());
+    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
+    const prompt = "Here is the start of a text the student will read:\n\"\"\"\n" + String(text).slice(0, 3500) + "\n\"\"\"\nReturn ONLY JSON: {\"title\": \"a short, specific headline for this text, max 10 words, in the text's language\"}.";
+    const order = chatModelOk ? [chatModelOk, ...CHAT_MODELS.filter(x => x !== chatModelOk)] : CHAT_MODELS;
+    let last = null;
+    for (const name of order) {
+      try {
+        const inst = await getAIInst();
+        const mdl = aiMod.getGenerativeModel(inst, { model: name, generationConfig: { responseMimeType: "application/json", maxOutputTokens: 120, temperature: 0.3 } });
+        const r = await mdl.generateContent(prompt);
+        const obj = JSON.parse(r.response.text().trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim());
+        aiUsed.n++; setDoc(dref, { ai: increment(1) }, { merge: true }).catch(() => {});
+        return obj;
+      } catch (e) { console.warn("articleMeta", name, e); last = e; }
+    }
+    throw { code: "ai", message: String(last && last.message || last) };
   },
   // ---------- Meus cadernos (fotos de páginas do aluno) ----------
   async readPage(b64, mime) {

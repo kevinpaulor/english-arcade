@@ -36,6 +36,11 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 main{flex:1;overflow-y:auto;padding:16px}
 main[hidden],.chat[hidden]{display:none}
 .lead{margin:0 0 14px;opacity:.8}
+.ref{display:inline;font-size:8px;padding:3px 6px;margin:0 2px;background:none;border:2px solid #29e6ff;color:#fff;vertical-align:middle;line-height:1.8}
+.chal{margin-top:8px;padding:8px 10px;border:2px dashed #ffd84a}
+.chalb{border-color:#ffd84a !important}
+.artlink{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.artlink select{background:var(--panel);color:#fff;border:2px solid var(--line);padding:8px;font:inherit;font-size:16px;max-width:100%}
 .reader{margin-top:12px}
 .rmeta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:6px 0 10px;opacity:.95}
 .apara{font-size:21px;line-height:1.45;margin:0 0 14px;-webkit-user-select:text;user-select:text}
@@ -329,7 +334,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 05:57</div>
+    <div class="ver" id="ver">v1 · build 26/11 06:15</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -419,7 +424,7 @@ $("mic").innerHTML = pix("mic",3); $("sendBtn").innerHTML = pix("send",3);
 const topicPages = k => P.filter(p => p.k === k);
 const ctxPages = () => { const r = S.ctx === "nb" && T[S.topic] ? [topicPages(S.topic)[S.tp]].filter(Boolean) : (byDate[S.date] || []); return r.length ? r : (byDate[S.date] || byDate[DATES[DATES.length-1]]); };
 const ctxColor = () => S.ctx === "art" && S.art && S.art.paras ? "#29e6ff" : T[ctxPages()[0].k].c;
-const ctxLabel = () => S.ctx === "art" && S.art && S.art.paras ? "📰 " + S.art.title.slice(0, 60) : S.ctx === "nb" && T[S.topic] ? topicName(S.topic) : (S.level !== "simple" ? "Lesson of " : "Aula de ") + fmt(S.date);
+const ctxLabel = () => S.ctx === "art" && S.art && S.art.paras ? "📰 " + S.art.title.slice(0, 50) + (S.art.lesson ? " · 🔗 " + short(S.art.lesson) : "") : S.ctx === "nb" && T[S.topic] ? topicName(S.topic) : (S.level !== "simple" ? "Lesson of " : "Aula de ") + fmt(S.date);
 /* ---------- páginas originais (fotos) e MEUS CADERNOS ---------- */
 const SCANS = window.SCANS || {};
 const SCAN_DIR = "../../scans/";
@@ -1168,21 +1173,54 @@ async function loadArticle(input){
   const v = String(input || "").trim(); if (!v) return;
   if (!isUrl(v)){
     if (v.length < 80){ copyTag(tr("COLE O LINK OU O TEXTO DA MATÉRIA","PASTE THE LINK OR THE ARTICLE TEXT")); return; }
-    const a = parseArticle("TEXT:\n" + v, ""); a.title = v.split(/\n/)[0].slice(0, 90); S.arts.unshift(a); saveArts(); openArticle(a); return;
+    const a = parseArticle("TEXT:\n" + v, ""); a.title = "";
+    S.view = "read"; S.art = {loading: "text"}; render();
+    await fixTitle(a); if (!a.title) a.title = v.split(/\n/)[0].slice(0, 90);
+    S.arts.unshift(a); saveArts(); openArticle(a); return;
   }
   const old = S.arts.find(a => a.url === v); if (old){ openArticle(old); return; }
   if (!(window.EA && EA.user() && EA.readUrl)){ copyTag(tr("ENTRE NA CONTA PARA ABRIR LINKS","SIGN IN TO OPEN LINKS")); return; }
   S.view = "read"; S.art = {loading: v}; render();
   try {
-    const raw = await EA.readUrl(v);
-    const a = parseArticle(raw, v);
+    let a = null;
+    try { const raw = await EA.readUrl(v); a = parseArticle(raw, v); if (a.paras.length < 3) a = null; } catch(e) { if (e && e.code === "limit") throw e; }
+    if (!a){ const raw = await readerFallback(v); a = parseArticle(raw, v); }
     if (a.paras.length < 2) throw {code: "nopage"};
+    await fixTitle(a);
     S.arts.unshift(a); saveArts(); if (S.view === "read") openArticle(a);
   } catch(e) {
     S.art = {error: v, code: e && e.code}; if (S.view === "read") render();
   }
 }
 const VOCAB_SET = () => { const s = new Set(); P.forEach(p => (p.v || []).forEach(v => String(v[0]).toLowerCase().split(/\s+/).length === 1 && s.add(String(v[0]).toLowerCase()))); return s; };
+function suggestLesson(a){
+  const txt = " " + a.paras.join(" ").toLowerCase() + " ";
+  let best = null, bs = 0;
+  Object.keys(byDate).forEach(d => {
+    const ps = byDate[d].filter(p => !p.mine); if (!ps.length) return;
+    let sc = 0;
+    ps.forEach(p => (p.v || []).forEach(v => { String(v[0]).toLowerCase().split(/\s*[\/,;]\s*/).forEach(t => { t = t.replace(/\(.*?\)|\.\.\./g, "").trim(); if (t.length > 3 && txt.indexOf(" " + t) >= 0) sc += t.indexOf(" ") > 0 ? 3 : 1; }); }));
+    if (sc > bs){ bs = sc; best = d; }
+  });
+  return bs >= 2 ? best : null;
+}
+async function readerFallback(url){
+  // Plano B: o Jina Reader (r.jina.ai, grátis) baixa a página e devolve o texto. Só o link é enviado.
+  const r = await fetch("https://r.jina.ai/" + url);
+  if (!r.ok) throw {code: "nopage"};
+  const raw = await r.text();
+  const title = (raw.match(/^Title:\s*(.+)$/m) || [])[1] || "";
+  let body = raw.split(/^Markdown Content:\s*$/m)[1] || raw;
+  body = body.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/^#{1,6}\s*/gm, "").replace(/[*_]{2,}/g, "");
+  const paras = body.split(/\n\s*\n/).map(x => x.replace(/\s*\n\s*/g, " ").trim()).filter(x => x.length >= 60 && (x.match(/[.!?]/g) || []).length >= 1 && !/^(\||cookie|subscribe|sign in|log in|share|advertisement)/i.test(x));
+  if (paras.length < 2) throw {code: "nopage"};
+  return "TITLE: " + title + "\nSOURCE: " + (new URL(url)).hostname.replace(/^www\./, "") + "\nTEXT:\n" + paras.join("\n\n");
+}
+const badTitle = t => !t || t.length < 12 || /skip to|main content|menu|sign in|log in|cookie|subscribe|home page|^article$/i.test(t);
+async function fixTitle(a){
+  if (!badTitle(a.title) || !(window.EA && EA.user() && EA.articleMeta)) return;
+  try { const r = await EA.articleMeta(a.paras.join("\n").slice(0, 3500)); if (r && r.title) a.title = String(r.title).slice(0, 140); } catch(e) {}
+}
 function renderReader(m){
   const a = S.art;
   const back = el("button","fbtn px",tr("◀ MATÉRIAS","◀ ARTICLES")); back.onclick = () => { S.view = "toc"; render(); };
@@ -1198,8 +1236,25 @@ function renderReader(m){
   const meta = el("div","rmeta");
   if (a.source) meta.append(el("span",null,a.source));
   if (a.url){ const o = el("a","cam px",tr("ORIGINAL ↗","ORIGINAL ↗")); o.href = a.url; o.target = "_blank"; o.rel = "noopener"; meta.append(o); }
-  const talk = el("button","act main px",tr("CONVERSAR SOBRE ►","TALK ABOUT IT ►")); talk.onclick = () => { S.ctx = "art"; S.view = "chat"; render(); botSay(tr("Vamos falar da matéria “","Let's talk about “") + a.title + "”. What did you think about it? Ask me about any word or idea.", {icon:"book"}); };
+  const talk = el("button","act main px",tr("CONVERSAR SOBRE ►","TALK ABOUT IT ►"));
+  talk.onclick = () => {
+    S.ctx = "art"; S.view = "chat"; render();
+    const lastBot = [...document.querySelectorAll("#msgs .m.bot .txt")].pop();
+    if (!lastBot || !lastBot._raw || lastBot._raw.indexOf(a.title) < 0) botSay(tr("Vamos falar da matéria “","Let's talk about “") + a.title + "”" + (a.lesson ? tr(", ligada à aula de "," — linked to your lesson of ") + fmt(a.lesson) : "") + ". What caught your attention? Ask me about any word or idea.", {icon:"book"});
+  };
   meta.append(talk); box.append(meta);
+  /* ligar a matéria a uma aula */
+  const lk = el("div","artlink");
+  const sel = el("select"); sel.setAttribute("aria-label", tr("Ligar a uma aula","Link to a lesson"));
+  sel.append(new Option(tr("🔗 Ligar a uma aula…","🔗 Link to a lesson…"), ""));
+  DATES.slice().reverse().forEach(d => { const ps = (byDate[d] || []).filter(p => !p.mine); if (ps.length) sel.append(new Option(short(d) + " · " + ps.map(p => p.t).join(" + ").slice(0, 60), d)); });
+  sel.value = a.lesson || "";
+  sel.onchange = () => { a.lesson = sel.value || null; saveArts(); render(); };
+  lk.append(sel);
+  const sug = suggestLesson(a);
+  if (!a.lesson && sug){ const sb = el("button","act px",tr("SUGESTÃO: ","SUGGESTED: ") + short(sug) + " · " + topicName(byDate[sug][0].k)); sb.onclick = () => { a.lesson = sug; saveArts(); render(); }; lk.append(sb); }
+  if (a.lesson && byDate[a.lesson]){ const go = el("button","act px",tr("VER AULA ","OPEN LESSON ") + short(a.lesson)); go.onclick = () => { S.date = a.lesson; S.view = "day"; render(); }; lk.append(go); }
+  box.append(lk);
   box.append(el("small","hint",tr("Toque numa palavra para ver a tradução. Segure e arraste para selecionar uma expressão.","Tap a word for its definition. Press and drag to select an expression.")));
   const vs = VOCAB_SET();
   a.paras.forEach(t => { const p = el("p","apara",t); wordify(p); p.querySelectorAll(".w").forEach(w => { if (vs.has(w.textContent.toLowerCase())) w.classList.add("known"); }); box.append(p); });
@@ -1295,8 +1350,9 @@ const LABS = {pt:{FIX:"CORREÇÃO", REPLY:"", "YOUR TURN":"SUA VEZ"}, en:{FIX:"F
 function richLine(parent, text, color){
   const line = el("span","line");
   let rest = text;
-  const ic = rest.match(/^\s*\{(\w+)\}\s*/);
-  if (ic && ICONS[ic[1]]){ line.append(pixEl(ic[1],2)); rest = rest.slice(ic[0].length); }
+  const ic = rest.match(/^\s*([{\[(]{0,2})\s*([a-z]+)\s*([}\])]{0,2})\s+/i);
+  if (ic && ICONS[ic[2].toLowerCase()] && (ic[1] || /^\s*\S+\s+[A-Z"“]/.test(rest))){ line.append(pixEl(ic[2].toLowerCase(),2)); rest = rest.slice(ic[0].length); }
+  rest = rest.replace(/\{(\w+)\}\s*/g, "");
   const re = /\[\[(.+?)\|(.+?)\]\]|\*\*(.+?)\*\*/g; let last = 0, m;
   while ((m = re.exec(rest))){
     namesText(line, rest.slice(last, m.index));
@@ -1308,18 +1364,51 @@ function richLine(parent, text, color){
   parent.append(line);
 }
 function paint(box, text){
-  box.textContent = ""; box._raw = text;
+  box.textContent = ""; box._raw = text; box._chal = "";
   const color = ctxColor();
   text.split(/\n+/).forEach(l => {
     if (/^\s*SCORE\s*:/i.test(l)) return;
+    const ch = l.match(/^\s*(CHALLENGE|YOUR TURN)\s*:\s*(.*)$/i);
+    if (ch){ box._chal = ch[2].trim(); return; }
     const m = l.match(/^\s*(FIX|REPLY|YOUR TURN)\s*:\s*(.*)$/i);
     if (m){ const k = m[1].toUpperCase(); const LAB = EN() ? LABS.en : LABS.pt; if (LAB[k]) box.append(el("span","lab",LAB[k])); if (m[2].trim()) richLine(box, m[2], color); }
     else if (l.trim()) richLine(box, l, color);
   });
+  refChips(box);
   wordify(box);
+}
+/* "the article" / "the lesson" no texto viram atalhos para a matéria ou a aula */
+function refChips(box){
+  const art = S.ctx === "art" && S.art && S.art.paras ? S.art : null;
+  const lesson = art && art.lesson ? art.lesson : (S.ctx === "day" ? S.date : null);
+  const re = art ? /\b(the|this|that) (article|text|story|piece)\b|\b(the|this|that|today's|your) lesson\b/gi : /\b(the|this|that|today's|your) lesson\b/gi;
+  const walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT, {acceptNode: n => n.parentNode.closest("button,.kw,.lab,a") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+  const list = []; while (walk.nextNode()) list.push(walk.currentNode);
+  list.forEach(tn => {
+    const t = tn.nodeValue; re.lastIndex = 0; if (!re.test(t)) return; re.lastIndex = 0;
+    const frag = document.createDocumentFragment(); let last = 0, m;
+    while ((m = re.exec(t))){
+      frag.append(document.createTextNode(t.slice(last, m.index)));
+      const isArt = !!m[2], b = el("button","ref px", (isArt ? "📰 " : "📒 ") + m[0]);
+      b.onclick = () => { if (isArt){ openArticle(art); } else if (lesson && byDate[lesson]){ S.date = lesson; S.view = "day"; render(); } };
+      frag.append(b); last = re.lastIndex;
+    }
+    frag.append(document.createTextNode(t.slice(last))); tn.replaceWith(frag);
+  });
 }
 function moreButtons(box, topicText){
   const row = el("div","more");
+  if (box._chal){
+    const [win] = POINTS[S.level];
+    const cb = el("button","px chalb", tr("🎯 DESAFIO +","🎯 CHALLENGE +") + win);
+    cb.onclick = () => {
+      document.querySelectorAll(".chalb").forEach(x => x.remove());
+      const c = el("div","chal"); c.append(el("span","lab",tr("DESAFIO","CHALLENGE")));
+      richLine(c, box._chal, ctxColor()); wordify(c); box.append(c);
+      S.chal = box._chal; $("msg").focus();
+    };
+    row.append(cb);
+  }
   const ex = el("button","px",tr("+ EXEMPLOS","+ EXAMPLES")), mo = el("button","px",tr("EXPLICAR MAIS","EXPLAIN MORE"));
   ex.onclick = () => { row.remove(); followUp("More examples, please.", "examples", topicText); };
   mo.onclick = () => { row.remove(); followUp("Can you explain it in more detail?", "explain", topicText); };
@@ -1329,7 +1418,7 @@ function followUp(label, mode, about){ if (S.busy) return; userSay(label); S.his
 
 /* ---------- Claude ---------- */
 function lessonContext(){
-  if (S.ctx === "art" && S.art && S.art.paras) return "ARTICLE he is reading in the app: \"" + S.art.title + "\"" + (S.art.source ? " (" + S.art.source + ")" : "") + "\n" + S.art.paras.join("\n").slice(0, 6000) + "\nTalk about this article: its ideas, vocabulary and expressions. Quote short bits of it when explaining.";
+  if (S.ctx === "art" && S.art && S.art.paras) return "ARTICLE he is reading in the app: \"" + S.art.title + "\"" + (S.art.source ? " (" + S.art.source + ")" : "") + "\n" + S.art.paras.join("\n").slice(0, 6000) + "\nTalk about this article: its ideas, vocabulary and expressions. Quote short bits of it when explaining." + (S.art.lesson && byDate[S.art.lesson] ? "\nHe linked it to his lesson of " + short(S.art.lesson) + " — connect the article with this lesson when it helps:\n" + byDate[S.art.lesson].filter(p => !p.mine).map(p => "• " + p.t + " — Phrases: " + p.f.slice(0, 8).join(" | ") + " — Vocabulary: " + (p.v || []).map(v => v[0]).join(", ")).join("\n") : "");
   return ctxPages().map(p => "• " + short(p.d) + " — " + p.t + " (" + T[p.k].n + ")\n  Phrases: " + p.f.join(" | ") + "\n  Vocabulary: " + (p.v||[]).map(v=>v[0]+" = "+v[1]).join("; ") + (p.g ? "\n  Tip: " + p.g : "")).join("\n");
 }
 const LEVEL_RULE = {simple:"SIMPLE level: short sentences and basic words (A2)", medium:"MEDIUM level: clear, natural English (B1-B2)", native:"NATIVE level: idiomatic, the way a native speaker would say it (C1)"};
@@ -1337,19 +1426,20 @@ async function askClaude(text, voice, mode, about){
   const pr = S.profile;
   const length = mode === "examples" ? "Give 3 new short example sentences (one per line inside REPLY), using his world when possible. Max 70 words."
     : mode === "explain" ? "Give a fuller explanation: rule, when to use it, a common mistake Brazilians make, and 2 examples. Max 120 words."
-    : "Be short and objective but genuinely clarifying: REPLY has 1 to 3 sentences. Max 55 words in total.";
+    : "Be friendly, natural and genuinely clarifying: REPLY has 2 to 4 sentences. Max 70 words in total.";
   const instr = "You are the student's English tutor inside the notebook app \"English Arcade\". The student is Brazilian; details about him are below.\n" +
    "CONTEXT (" + ctxLabel() + "):\n" + lessonContext() + "\n\n" +
    "STUDENT'S WORLD (each person comes with their own places, objects and actions — keep them together): " + worldText() + "\n" +
    (memoryText() ? "MEMORY OF PAST CONVERSATIONS (use it naturally to connect topics, recall what he told you and revisit his recurring mistakes; never invent memories):\n" + memoryText() + "\n" : "") +
+   (S.chal ? "He is answering this CHALLENGE you gave him: \"" + S.chal + "\". Judge it fairly and say if it's right.\n" : "") +
    (S.drill ? "He is answering this drill: " + S.drill.task + " \"" + S.drill.phrase + "\". Say if the transformation is right.\n" : "") +
    (about ? "Previous answer he wants to expand: " + about + "\n" : "") +
    "FORMAT (plain text, no markdown, each part on its own line):\n" +
    "FIX: only if his message has a REAL English mistake (grammar or a wrong word) — the corrected sentence + why in max 8 words" + (EN() ? " (in English)" : " (Portuguese ok)") + ". Omit this line when it's correct.\n" +
-   "REPLY: the answer, written at the " + LEVEL_RULE[S.level] + ". Answer from the lesson content when he asks about it and quote it exactly.\n" +
-   "SCORE: correct | mistake | none — correct if his English message or drill answer is acceptable; mistake ONLY if you wrote a FIX line; none if he wrote in Portuguese, only asked something without writing a real English sentence, or for examples/explain modes.\n" +
+   "REPLY: a real conversation, written at the " + LEVEL_RULE[S.level] + ". React to what he said, answer his question (from the lesson or article content when he asks about it, quoting it exactly), add one interesting detail, and keep the conversation going naturally — invite him to share his opinion or experience, but do NOT end every reply with a question; often a comment or a 'tell me about…' is better.\n" +
+   "SCORE: correct | mistake | none — correct if he wrote at least one complete English sentence with no real mistakes (or got the challenge/drill right); mistake ONLY if you wrote a FIX line; none if he wrote in Portuguese, wrote only a few words, or for examples/explain modes.\n" +
    "JUDGING (be fair): accept ANY answer that is grammatically correct, natural and does what was asked, even if it differs from the answer you had in mind — synonyms, other word orders and other valid tenses count as correct. NEVER treat as mistakes: capitalization, punctuation, missing apostrophes from voice input, contractions (don't / do not), British vs American spelling, or a small typo that doesn't change the word. His messages often come from speech recognition. When the answer is correct but could sound more natural, keep SCORE correct, skip FIX, and mention the nicer version in REPLY. If he wrote in Portuguese, don't penalize: show the English version in REPLY.\n" +
-   "YOUR TURN: one short challenge in English that he answers in English — answer a question about his life or the lesson, turn a sentence into a question or a negative, change the subject or the tense, or complete a sentence. NEVER ask him to translate anything (in either direction) and never put Portuguese text in the challenge. Omit it for the examples/explain modes.\n" +
+   "CHALLENGE: one short optional exercise in English that he answers in English, about what you're talking about — turn a sentence into a question or a negative, change the subject or the tense, complete a sentence, or use a word in a sentence. It is HIDDEN behind a button, so never mention it in REPLY. NEVER ask him to translate anything and never put Portuguese text in it. Omit it for the examples/explain modes.\n" +
    "STYLE: " + length + " " + (EN() ? "LANGUAGE: write EVERYTHING in English — no Portuguese words at all, in any line. Mark the 1 or 2 most useful words or expressions as [[expression|short learner's-dictionary definition in English, like the Cambridge Learner's Dictionary, max 12 words]]." : "Mark the 1 or 2 most useful words or expressions as [[expression|meaning in Portuguese, max 8 words]].") + " Sometimes — not every time — use a famous quote or a reference to a globally known movie or series when it truly fits. You may start REPLY with ONE icon tag that matches the content, chosen from {plane} {food} {film} {book} {star} {bulb} {chat} {heart} {house} {clock} {check} — only when it fits, never forced.\n\n" +
    "Recent chat:\n" + S.hist.slice(-8).map(h => (h.r === "u" ? "Student: " : "Tutor: ") + h.t).join("\n") + "\n\nStudent's new message: " + text;
   const box = botSay("…"); S.busy = true;
@@ -1359,7 +1449,15 @@ async function askClaude(text, voice, mode, about){
     S.hist.push({r:"a", t:res.text}); logMsg("a", res.text);
     const sm = res.text.match(/SCORE\s*:\s*(correct|mistake)/i);
     let extra = null;
-    if (sm && !mode) extra = addScore(sm[1].toLowerCase() === "correct", box._wrap);
+    const ok = sm && sm[1].toLowerCase() === "correct";
+    if (sm && !mode){
+      if (S.chal || S.drill){ extra = addScore(ok, box._wrap); S.streak = ok ? (S.streak || 0) + 1 : 0; }
+      else if (ok && text.trim().split(/\s+/).length >= 4){
+        S.streak = (S.streak || 0) + 1;
+        if (S.streak >= 2){ extra = addScore(true, box._wrap); const f = box._wrap.querySelector(".pts:last-of-type"); if (f) f.textContent = "🔥 " + S.streak + "x " + f.textContent; }
+      } else if (!ok) S.streak = 0;
+    }
+    S.chal = null;
     rec("a", res.text, extra);
     if (S.drill){ S.drills++; store("ea-drills", S.drills); }
     S.drill = null;
