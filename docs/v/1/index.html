@@ -364,7 +364,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 11:22</div>
+    <div class="ver" id="ver">v1 · build 26/11 13:11</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -475,10 +475,10 @@ const cleanS = (x, n) => typeof x === "string" ? x.trim().slice(0, n) : "";
 const cleanA = (a, n, m) => Array.isArray(a) ? a.filter(x => typeof x === "string" && x.trim()).slice(0, n).map(x => x.trim().slice(0, m)) : [];
 const cleanV = a => Array.isArray(a) ? a.filter(x => Array.isArray(x) && typeof x[0] === "string").slice(0, 20).map(x => [x[0].slice(0, 60), String(x[1] || "").slice(0, 80)]) : [];
 const isDay = d => typeof d === "string" && /^\d{4}-\d\d-\d\d$/.test(d) && !isNaN(new Date(d + "T12:00:00"));
-function addNotebook(nb){ T["u_" + nb.id] = {n: nb.title, c: nb.color, mine: true, id: nb.id, created: nb.created || 0}; }
+function addNotebook(nb){ T["u_" + nb.id] = {n: nb.title, en: nb.titleEn || "", c: nb.color, mine: true, id: nb.id, created: nb.created || 0}; }
 function addMinePage(pg){
   if (!T["u_" + pg.nb]) return null;
-  const p = {mine: true, id: pg.id, nb: pg.nb, k: "u_" + pg.nb, d: isDay(pg.d) ? pg.d : todayKey(), t: cleanS(pg.t, 80) || "Página", s: cleanS(pg.s, 400),
+  const p = {mine: true, id: pg.id, nb: pg.nb, k: "u_" + pg.nb, d: isDay(pg.d) ? pg.d : todayKey(), t: cleanS(pg.t, 80) || "Página", s: cleanS(pg.s, 400), sEn: cleanS(pg.sEn, 400), gEn: cleanS(pg.gEn, 300),
     f: cleanA(pg.f, 14, 240), v: cleanV(pg.v), g: cleanS(pg.g, 300), fixes: cleanA(pg.fixes, 8, 160), created: pg.created || 0};
   P.push(p); return p;
 }
@@ -558,18 +558,18 @@ async function readPhotos(files, nbId){
     if (!res || res.ok === false || !Array.isArray(res.phrases)){ box.textContent = "Não parece uma página de estudo. Tente de novo com a página inteira, reta e com boa luz."; continue; }
     if (!nb){
       const id = "n" + Date.now().toString(36);
-      const nbObj = {id, title: cleanS(res.notebook, 40) || cleanS(res.topic, 40) || "Meu caderno", color: NB_COLORS[mineKeys().length % NB_COLORS.length], created: Date.now()};
+      const nbObj = {id, title: cleanS(res.notebook, 40) || cleanS(res.topic, 40) || "Meu caderno", titleEn: cleanS(res.notebook_en, 40), color: NB_COLORS[mineKeys().length % NB_COLORS.length], created: Date.now()};
       addNotebook(nbObj); nb = T["u_" + id];
       try { await EA.saveNotebook(nbObj); } catch(e) { console.warn(e); }
     }
-    const pg = {id: "p" + Date.now().toString(36) + n, nb: nb.id, d: isDay(res.date) ? res.date : todayKey(), t: res.title, s: res.summary, f: res.phrases, v: res.vocab, g: res.tip, fixes: res.fixes, created: Date.now()};
+    const pg = {id: "p" + Date.now().toString(36) + n, nb: nb.id, d: isDay(res.date) ? res.date : todayKey(), t: res.title, s: res.summary, sEn: res.summary_en, f: res.phrases, v: res.vocab, g: res.tip, gEn: res.tip_en, fixes: res.fixes, created: Date.now()};
     const p = addMinePage(pg); rebuildIndex();
     let saved = true;
     let saveErr = "";
-    try { await EA.savePage(Object.assign({}, pg, {t: p.t, s: p.s, f: p.f, v: p.v, g: p.g, fixes: p.fixes, d: p.d}), thumb); } catch(e) { console.warn("savePage", e); saved = false; saveErr = String(e && (e.code || e.message) || e).slice(0, 120); }
+    try { await EA.savePage(Object.assign({}, pg, {t: p.t, s: p.s, sEn: p.sEn, f: p.f, v: p.v, g: p.g, gEn: p.gEn, fixes: p.fixes, d: p.d}), thumb); } catch(e) { console.warn("savePage", e); saved = false; saveErr = String(e && (e.code || e.message) || e).slice(0, 120); }
     lastPage = p;
     box.textContent = "";
-    box.append(pixEl("book",2), document.createTextNode(tr(" Nova página em “"," New page in “") + nb.n + "”: " + p.t + (EN() ? "" : "\n" + (p.s || ""))));
+    box.append(pixEl("book",2), document.createTextNode(tr(" Nova página em “"," New page in “") + (EN() && nb.en ? nb.en : nb.n) + "”: " + p.t + (EN() ? "" : "\n" + (p.s || ""))));
     if (p.fixes.length) box.append(document.createTextNode(tr("\nCorrigi: ","\nFixed: ") + p.fixes.join(" · ")));
     if (!saved) box.append(document.createTextNode(tr("\n(Não consegui salvar na sua conta — ela fica só até fechar o app. Detalhe: ","\n(Couldn't save it to your account — it stays only until you close the app. Detail: ") + saveErr + ")"));
     box._raw = box.textContent;
@@ -675,7 +675,7 @@ function kwButton(word, info, color){
   const b = el("button","kw",word); b.style.color = color; b.style.textDecorationColor = color;
   b.setAttribute("aria-expanded","false");
   b.onclick = () => {
-    if (info == null){ lookupWord(b, word, color); return; }
+    if (info == null || (EN() && isPt(String(info).split(/\s+[—-]\s+/).pop()))){ lookupWord(b, word, color); return; }
     let g = b._gloss;
     if (g){ g.remove(); b._gloss = null; b.setAttribute("aria-expanded","false"); return; }
     g = el("span","gloss",info); g.style.borderColor = color; b._gloss = g; b.setAttribute("aria-expanded","true");
@@ -697,7 +697,7 @@ function renderPage(p, showDate){
     cam.setAttribute("aria-label", p.mine ? "Ver a foto da página" : "Ver a página do caderno");
     cam.onclick = () => openViewer(shots, 0); head.append(cam);
   }
-  box.append(head, el("h2","ptitle px",p.t)); if (!EN() || p.mine && !/[ãõçáéíóúâêô]/i.test(p.s || "")) box.append(el("p","psum",p.s));
+  box.append(head, el("h2","ptitle px",p.t)); if (!EN()) box.append(el("p","psum",p.s)); else if (p.mine && (p.sEn || (p.s && !isPt(p.s)))) box.append(el("p","psum",p.sEn || p.s));
   if (p.fixes && p.fixes.length){ const fx = el("div","tip"); fx.append(el("span","px",tr("CORRIGIDO","FIXED")), el("span",null,p.fixes.join(" · "))); box.append(fx); }
   box.append(el("div","sec px",tr("FRASES","PHRASES")));
   const list = terms(p), budget = {n:4};
@@ -709,6 +709,7 @@ function renderPage(p, showDate){
     box.append(g);
     if (EN()) box.append(el("small","hint","Tap any word to see its definition and an example."));
   }
+  if (EN() && p.mine && p.gEn){ const tip = el("div","tip"); tip.append(el("span","px","TIP"), el("span",null,p.gEn)); box.append(tip); }
   if (p.g && !EN()){ const tip = el("div","tip"); tip.append(el("span","px","DICA"), el("span",null,p.g)); box.append(tip); }
   const acts = el("div","acts");
   const talk = el("button","act main px",tr("CONVERSAR ►","TALK ►"));
@@ -1088,7 +1089,7 @@ function renderSettings(m){
 function renderExport(m){
   const box = el("section","export");
   box.append(el("p","lead","Seu progresso: pontos, conversas, correções e aulas revisadas. Baixe, copie ou mande por email."));
-  const text = summary(), pre = el("pre",null,text); box.append(pre);
+  const text = exportEN(summary()), pre = el("pre",null,text); box.append(pre);
   const acts = el("div","acts"), note = el("p","note");
   if (downloads){
     const dl = el("button","act main px","BAIXAR .TXT");
@@ -1126,6 +1127,7 @@ function render(){
   else if (S.view === "settings") renderSettings(m);
   else if (S.view === "conv") renderConv(m);
   else if (S.view === "read") renderReader(m);
+  translateUI(m); translateUI($("installModal")); watchUI();
   document.querySelectorAll(".lv").forEach(b => b.setAttribute("aria-checked", String(b.dataset.lv === S.level)));
   $("tutBtn").setAttribute("aria-pressed", String(S.tut));
   const c = $("ctx"); c.textContent = ""; const i = el("i"); i.style.background = ctxColor(); c.append(i, document.createTextNode(ctxLabel()), el("span","caret"," ▾"));
@@ -1181,7 +1183,13 @@ function syncTutorial(){
 const EN = () => S.level !== "simple";
 const tr = (pt, en) => EN() ? en : pt;
 const TOPIC_EN = {past:"Past tenses", perfect:"Present & past perfect", future:"Future: will & going to", modals:"Modals & conditionals", grammar:"Grammar: comparatives & more", phrasal:"Phrasal verbs & expressions", vocab:"Vocabulary, series & reading", writing:"Linking words, opinion & TOEFL", travel:"Travel, airport & hotel", talk:"Conversation & role-play", food:"Restaurant & food", life:"Home, shopping & daily life"};
-const topicName = k => (EN() && TOPIC_EN[k]) ? TOPIC_EN[k] : (T[k] ? T[k].n : "");
+const topicName = k => (EN() && TOPIC_EN[k]) ? TOPIC_EN[k] : (EN() && T[k] && T[k].mine) ? (T[k].en || (fixNbName(k), T[k].n)) : (T[k] ? T[k].n : "");
+const nbFixing = {};
+async function fixNbName(k){
+  const t = T[k]; if (!t || t.en || nbFixing[k] || !isPt(t.n) || !(window.EA && EA.user() && EA.articleMeta)) return;
+  nbFixing[k] = 1;
+  try { const r = await EA.articleMeta(t.n, "en"); if (r && r.title){ t.en = String(r.title).slice(0, 60); EA.saveNotebook({id: t.id, title: t.n, titleEn: t.en, color: t.c, created: t.created}).catch(() => {}); render(); } } catch(e) {}
+}
 function applyLang(){
   const tabs = {"t-chat":["CHAT","CHAT"], "t-day":["CADERNO","NOTEBOOK"], "t-toc":["SUMÁRIO","CONTENTS"], "t-diary":["PESSOAL","PERSONAL"], "t-me":["EU","ME"]};
   Object.keys(tabs).forEach(id => { const b = $(id); if (b) b.textContent = tr(...tabs[id]); });
@@ -1424,6 +1432,74 @@ document.addEventListener("selectionchange", () => {
     wordSheet(t, para ? para.textContent.slice(0, 240) : t);
   }, 650);
 });
+/* ---------- MÉDIO/NATIVO: traduz para inglês os textos fixos das telas (configurações, EU, PESSOAL, exportar…) ---------- */
+const UI_EN = {
+"A voz do Commodore 64, crua e com chiado.":"The Commodore 64 voice, raw and crackly.",
+"Mesma voz retrô, mais lenta e filtrada: menos ruído e interferência.":"Same retro voice, slower and filtered: less noise and interference.",
+"Padrão. Voz natural do celular ou do computador, grátis e sem limite. Lê o inglês com voz em inglês e o português com voz em português.":"Default. Natural voice from your phone or computer, free and unlimited.",
+"Voz natural feita pela IA do Gemini, grátis dentro do limite diário. Precisa estar logado. Se falhar, uso a 8-BIT SUAVE.":"Natural voice made by Gemini AI, free within the daily limit. Requires sign-in. If it fails, the device voice is used.",
+"8-BIT CLÁSSICO":"CLASSIC 8-BIT","8-BIT SUAVE":"SOFT 8-BIT","VOZ DO APARELHO":"DEVICE VOICE","VOZ IA (GEMINI)":"AI VOICE (GEMINI)",
+"APAGAR":"DELETE","VOLTAR":"BACK","FECHAR":"CLOSE","SAIR":"SIGN OUT","CONTA":"ACCOUNT","COPIAR":"COPY","ADD":"ADD","APP":"APP","BACKUP":"BACKUP",
+"BAIXAR .TXT":"DOWNLOAD .TXT","BAIXAR BACKUP (.JSON)":"DOWNLOAD BACKUP (.JSON)","IMPORTAR BACKUP":"IMPORT BACKUP",
+"Baixe um arquivo com seu perfil, conversas e pontos. Importar junta com o que já existe, sem apagar nada.":"Download a file with your profile, conversations and points. Importing merges with what you already have, without deleting anything.",
+"CONFIGURAÇÕES":"SETTINGS","VOZ DO ▶":"▶ VOICE","TUTORIAL: LIGADO":"TUTORIAL: ON","TUTORIAL: DESLIGADO":"TUTORIAL: OFF",
+"ENVIAR POR EMAIL":"SEND BY EMAIL","ENVIAR SUGESTÃO":"SEND SUGGESTION","EXPORTAR MEU PROGRESSO":"EXPORT MY PROGRESS","Email de destino":"Recipient email",
+"Escreva sua ideia ou o problema que encontrou":"Write your idea or the problem you found","SUGESTÕES":"SUGGESTIONS","Sugestão":"Suggestion","Sua sugestão vai para o administrador do app.":"Your suggestion goes to the app's admin.",
+"Enviada. Obrigado!":"Sent. Thank you!","Não consegui enviar agora.":"Couldn't send it right now.",
+"Escreva uma frase ligando pessoas, lugares e ações. Eu guardo e uso nas conversas.":"Write a sentence linking people, places and actions. I'll keep it and use it in conversations.",
+"Ex: Ana adora sushi e trabalha num hospital em Botafogo.":"E.g. Ana loves sushi and works at a hospital in Botafogo.",
+"MEMÓRIA LIVRE":"FREE MEMORY","PESSOAS":"PEOPLE","LUGARES":"PLACES","OBJETOS":"OBJECTS","PROFISSÃO":"JOB","PROFISSÕES":"JOBS","SITUAÇÕES":"SITUATIONS","NOME":"NAME","CIDADE":"CITY","QUEM É":"WHO","AÇÕES":"ACTIONS",
+"COMIDAS FAVORITAS":"FAVORITE FOODS","PARENTES":"FAMILY","HOBBIES":"HOBBIES","FILMES & SÉRIES":"MOVIES & SERIES","MÚSICAS & ARTISTAS":"MUSIC & ARTISTS","OBJETIVOS COM O INGLÊS":"ENGLISH GOALS","OUTRAS COISAS SOBRE MIM":"OTHER THINGS ABOUT ME","OUTROS":"OTHER",
+"Nome (quem é) · Ex: Ana (fiancée)":"Name (who) · E.g. Ana (fiancée)","Adicionar pessoa":"Add person","REMOVER PESSOA":"REMOVE PERSON","Seu nome":"Your name","email (opcional)":"email (optional)",
+"O chat usa você, as suas pessoas e a sua memória livre nos exemplos e desafios.":"The chat uses you, your people and your free memory in examples and challenges.",
+"Apagar esta lembrança":"Delete this memory","Salvo na sua conta.":"Saved to your account.","Salvo neste aparelho. Para não perder, salve sua conta em CONFIGURAÇÕES.":"Saved on this device. To keep it, save your account in SETTINGS.",
+"Usando sem conta. Seus dados ficam só neste aparelho até você salvar a conta.":"Using without an account. Your data stays only on this device until you save the account.",
+"SALVAR CONTA COM GOOGLE":"SAVE ACCOUNT WITH GOOGLE","SAIR MESMO? (SEM CONTA, PERDE OS DADOS)":"SIGN OUT? (WITHOUT AN ACCOUNT YOU LOSE THE DATA)","CONFIRMAR APAGAR":"CONFIRM DELETE",
+"Seu progresso: pontos, conversas, correções e aulas revisadas. Baixe, copie ou mande por email.":"Your progress: points, conversations, corrections and reviewed lessons. Download, copy or send it by email.",
+"Se o email não abrir sozinho, baixe ou copie o resumo e cole no seu email.":"If the email doesn't open by itself, download or copy the summary and paste it into your email.",
+"Resumo copiado.":"Summary copied.","Arquivo salvo.":"File saved.","Backup baixado.":"Backup downloaded.","Não deu para copiar. Selecione o texto acima.":"Couldn't copy. Select the text above.","O download não foi feito. Use COPIAR.":"The download didn't work. Use COPY.",
+"CONTINUAR CONVERSA ►":"CONTINUE CONVERSATION ►","◀ PESSOAL":"◀ PERSONAL","Ouvir":"Listen","Privacidade":"Privacy","Criado por Kevin Paulo · @Arkev.arq ·":"Created by Kevin Paulo · @Arkev.arq ·",
+"· Dicionário: Open English WordNet (CC BY 4.0)":"· Dictionary: Open English WordNet (CC BY 4.0)",
+"▶ TESTAR INGLÊS":"▶ TEST ENGLISH","▶ TESTAR PORTUGUÊS":"▶ TEST PORTUGUESE","📲 BAIXAR APP":"📲 GET THE APP","📲 INSTALAR O APP":"📲 INSTALL THE APP","🛡 CENTRAL ADM":"🛡 ADMIN","NOVIDADES":"WHAT'S NEW",
+"ANDROID (CHROME)":"ANDROID (CHROME)","IPHONE (SAFARI)":"IPHONE (SAFARI)","COMPUTADOR":"COMPUTER","DENTRO DO INSTAGRAM OU WHATSAPP":"INSIDE INSTAGRAM OR WHATSAPP",
+"Abra o link no Chrome.":"Open the link in Chrome.","Abra o link no Safari.":"Open the link in Safari.","Depois siga os passos do seu aparelho.":"Then follow the steps for your device.",
+"No Chrome ou Edge, clique no ícone de instalar na barra de endereço.":"In Chrome or Edge, click the install icon in the address bar.",
+"Toque em \"Adicionar à Tela de Início\".":"Tap \"Add to Home Screen\".","Toque em \"Adicionar à tela inicial\" ou \"Instalar app\".":"Tap \"Add to home screen\" or \"Install app\".",
+"Toque em Compartilhar (quadrado com seta).":"Tap Share (square with an arrow).","Toque nos três pontinhos e escolha \"Abrir no navegador\".":"Tap the three dots and choose \"Open in browser\".","Toque nos três pontinhos ⋮.":"Tap the three dots ⋮.",
+"Digite seu email primeiro.":"Type your email first.","Conta salva!":"Account saved!","Não deu certo. Tente de novo.":"That didn't work. Try again.",
+"• Mais vozes — nova":"• More voices — new"
+};
+const UI_RX = [
+  [/^Trocar a cor de (.+)$/, "Change the color of $1"],
+  [/^🧪 TESTAR v(\d+)$/, "🧪 TEST v$1"],
+  [/^Ex: (.+)$/, "E.g. $1"]
+];
+function enPrefixed(k){ const m = k.match(/^([○●•▶◀]\s*)(.+)$/); return m && UI_EN[m[2]] ? m[1] + UI_EN[m[2]] : null; }
+const EXPORT_EN = [["ENGLISH ARCADE — RESUMO DE ESTUDOS","ENGLISH ARCADE — STUDY SUMMARY"],["Gerado em ","Generated on "],["nível do chat: ","chat level: "],["NATIVO","NATIVE"],["MÉDIO","MEDIUM"],["FÁCIL","EASY"],["PONTUAÇÃO: ","SCORE: "],["PROGRESSO","PROGRESS"],["- Conversas salvas: ","- Saved conversations: "],["- Caderno: ","- Notebook: "],[" páginas em "," pages in "],[" aulas ("," lessons ("],["- Aulas abertas no app: ","- Lessons opened in the app: "],["- Mensagens enviadas no chat: ","- Messages sent in the chat: "],["- Treinos feitos: ","- Drills done: "],["ASSUNTOS","SUBJECTS"],[" páginas (", " pages ("],["ÚLTIMAS CONVERSAS","LATEST CONVERSATIONS"],[" mensagens"," messages"],[" mensagem"," message"],["O QUE PERGUNTEI RECENTEMENTE","WHAT I ASKED RECENTLY"],["SOBRE MIM","ABOUT ME"],["MEU MUNDO","MY WORLD"],["- Pessoas: ","- People: "],["- Memória: ","- Memory: "],["- Profissões: ","- Jobs: "],["- Objetos: ","- Objects: "],["- Lugares: ","- Places: "],["- Situações: ","- Situations: "],["AULAS QUE REVISEI","LESSONS I REVIEWED"],["CORREÇÕES QUE RECEBI","CORRECTIONS I GOT"],["…(resumo completo no arquivo .txt)","…(full summary in the .txt file)"],["Aula de ","Lesson of "]];
+function exportEN(t){ if (!EN()) return t; let s = t.replace(/(\d\d\/\d\d(?:\/\d{4})?) a (\d\d\/\d\d)/g, "$1 to $2"); EXPORT_EN.forEach(([a,b]) => { s = s.split(a).join(b); }); Object.keys(TOPIC_EN).forEach(k => { if (T[k]) s = s.split(T[k].n).join(TOPIC_EN[k]); }); return s; }
+function enText(t){
+  const k = t.trim(); if (!k) return null;
+  if (UI_EN[k]) return t.replace(k, UI_EN[k]);
+  for (const [rx, rep] of UI_RX) if (rx.test(k)) return t.replace(k, k.replace(rx, rep));
+  const pf = enPrefixed(k); if (pf) return t.replace(k, pf);
+  return null;
+}
+function translateUI(root){
+  if (!EN() || !root) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: n => n.parentNode.closest(".m,.apara,.reader,textarea,input") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+  const list = []; while (w.nextNode()) list.push(w.currentNode);
+  list.forEach(n => { const v = enText(n.nodeValue); if (v != null) n.nodeValue = v; });
+  root.querySelectorAll("[placeholder],[aria-label]").forEach(e => {
+    ["placeholder","aria-label"].forEach(a => { const v = e.getAttribute(a); if (v){ const t = enText(v); if (t != null) e.setAttribute(a, t); } });
+  });
+}
+let uiObs = null;
+function watchUI(){
+  if (uiObs) return;
+  uiObs = new MutationObserver(muts => { if (!EN()) return; muts.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1 && !n.closest(".m")) translateUI(n); else if (n.nodeType === 3 && n.parentNode && !n.parentNode.closest(".m,.apara")){ const v = enText(n.nodeValue); if (v != null) n.nodeValue = v; } })); });
+  ["main","newsModal","installModal"].forEach(id => { const r = $(id); if (r) uiObs.observe(r, {childList:true, subtree:true, characterData:false}); });
+  uiObs.observe(document.body, {childList:true});
+}
 /* ---------- segurar a mensagem = copiar ---------- */
 async function copyText(txt){
   try { await navigator.clipboard.writeText(txt); return true; } catch(e) {}
@@ -2140,6 +2216,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-26f", d:"26/11", pt:["NATIVO e MÉDIO sem nenhum português: configurações, EU, PESSOAL, exportar, cadernos e palavras tocadas"], en:["NATIVE and MEDIUM with no Portuguese at all: settings, ME, PERSONAL, export, notebooks and tapped words"]},
   {id:"2026-11-26e", d:"26/11", pt:["Dicionário de inglês dentro do app: ao tocar numa palavra a definição aparece na hora, sem esperar a IA"], en:["English dictionary built into the app: tap a word and the definition shows instantly, no waiting for the AI"]},
   {id:"2026-11-26d", d:"26/11", pt:["Cada tema tem sua própria conversa: a IA não mistura mais matéria, aula e caderno","Divisor no chat mostra quando o assunto muda, com botão ABRIR","Toque no tema no topo (▾) para trocar entre os temas recentes"], en:["Each topic has its own conversation: the tutor no longer mixes article, lesson and notebook","A divider in the chat shows when the topic changes, with an OPEN button","Tap the topic at the top (▾) to switch between recent topics"]},
   {id:"2026-11-26c", d:"26/11", pt:["Correção: as páginas fotografadas em MEUS CADERNOS agora ficam salvas na conta"], en:["Fix: pages photographed in MY NOTEBOOKS are now saved to your account"]},

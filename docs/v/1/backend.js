@@ -264,11 +264,11 @@ const EA = {
     }
     throw { code: (last && last.code) || "ai", message: String(last && last.message || last) };
   },
-  async articleMeta(text) {
+  async articleMeta(text, lang) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const dref = doc(db, "users", u.uid, "days", today());
     if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
-    const prompt = "Here is the start of a text the student will read:\n\"\"\"\n" + String(text).slice(0, 3500) + "\n\"\"\"\nReturn ONLY JSON: {\"title\": \"a short, specific headline for this text, max 10 words, in the text's language\"}.";
+    const prompt = "Here is the start of a text the student will read:\n\"\"\"\n" + String(text).slice(0, 3500) + "\n\"\"\"\nReturn ONLY JSON: {\"title\": \"a short, specific headline for this text, max 10 words, " + (lang === "en" ? "in English" : "in the text's language") + "\"}.";
     const order = chatModelOk ? [chatModelOk, ...CHAT_MODELS.filter(x => x !== chatModelOk)] : CHAT_MODELS;
     let last = null;
     for (const name of order) {
@@ -292,11 +292,11 @@ const EA = {
       "Read it carefully (handwriting included). Keep only the study content, and CORRECT every English mistake you find.\n" +
       "Return ONLY JSON with these keys:\n" +
       "{\"ok\": true, \"title\": \"short title of the page, max 6 words\", \"topic\": \"subject in Portuguese, max 3 words\", " +
-      "\"notebook\": \"suggested notebook name in Portuguese, max 4 words\", \"date\": \"YYYY-MM-DD if a date is written on the page, else empty\", " +
+      "\"notebook\": \"suggested notebook name in Portuguese, max 4 words\", \"notebook_en\": \"the same notebook name in English\", \"date\": \"YYYY-MM-DD if a date is written on the page, else empty\", " +
       "\"summary\": \"1 or 2 sentences in Portuguese about what the page teaches\", " +
       "\"phrases\": [\"up to 12 corrected English sentences or examples from the page\"], " +
       "\"vocab\": [[\"English word or expression\", \"meaning in Portuguese, max 8 words\"]], " +
-      "\"tip\": \"one short study tip in Portuguese\", \"fixes\": [\"mistakes you corrected, as 'wrong → right', max 6\"]}\n" +
+      "\"tip\": \"one short study tip in Portuguese\", \"summary_en\": \"the same summary in English\", \"tip_en\": \"the same tip in English\", \"fixes\": [\"mistakes you corrected, as 'wrong → right', max 6\"]}\n" +
       "If the photo is not a study page, return {\"ok\": false}.";
     const order = chatModelOk ? [chatModelOk, ...CHAT_MODELS.filter(x => x !== chatModelOk)] : CHAT_MODELS;
     let last = null;
