@@ -111,6 +111,7 @@ main[hidden],.chat[hidden]{display:none}
 .w{cursor:pointer;border-radius:2px}
 .w.on{background:rgba(255,255,255,.16);text-decoration:underline;text-underline-offset:3px}
 .gex{display:block;margin-top:4px;opacity:.85;font-style:italic}
+.gmore{display:block;margin-top:4px;opacity:.65;font-size:.9em}
 .gloss .cam{display:inline-block;margin-top:6px;font-size:7px;color:#fff;border:2px solid rgba(255,255,255,.4);padding:5px 7px;text-decoration:none}
 .voc.en{display:flex;flex-wrap:wrap;gap:6px 14px}
 .hint{display:block;margin-top:8px;opacity:.6;font-size:14px}
@@ -363,7 +364,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 11:15</div>
+    <div class="ver" id="ver">v1 · build 26/11 11:22</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -1211,11 +1212,32 @@ function glossBox(anchor, color){
   const line = anchor.closest(".line"); if (line) line.after(g); else (anchor.closest(".phr,.voc") || anchor.parentNode).append(g);
   return g;
 }
+/* dicionário offline (Open English WordNet, CC BY 4.0): 22 mil palavras, um arquivo por letra, baixado na hora */
+const OFFDICT = {}, OFFLOAD = {};
+function offLetter(l){
+  if (OFFDICT[l]) return Promise.resolve(OFFDICT[l]);
+  if (!OFFLOAD[l]) OFFLOAD[l] = fetch("../../dict/" + l + ".json").then(r => r.ok ? r.json() : {}).then(d => (OFFDICT[l] = d)).catch(() => (OFFLOAD[l] = null, {}));
+  return OFFLOAD[l];
+}
+async function offlineInfo(word){
+  let w = String(word).toLowerCase().replace(/[’]/g, "'").replace(/'s$/, "");
+  if (!/^[a-z]/.test(w)) return null;
+  const d = await offLetter(w[0]); let e = d && d[w];
+  if (!e && w.endsWith("s")) { const d2 = d && d[w.slice(0, -1)]; if (d2) e = d2; }
+  if (!e) return null;
+  let lem = ""; if (typeof e[0] === "string"){ lem = e[0]; e = e.slice(1); }
+  if (!e.length){ if (lem){ const r = await offlineInfo(lem); if (r) r.lem = lem; return r; } return null; }
+  return {pos: e[0][0], def: e[0][1], example: e[0][2] || "", lem, more: e.slice(1).map(x => ({pos: x[0], def: x[1]})), off: true};
+}
+function preloadDict(){ ["a","b","c","d","e","f","g","h","i","l","m","n","o","p","r","s","t","w"].forEach((l, i) => setTimeout(() => offLetter(l), 1500 + i * 400)); }
 function fillGloss(g, word, info){
   g.textContent = "";
-  if (info.pt){ g.append(el("b",null,word), document.createTextNode(" — " + info.pt)); return; }
-  g.append(el("b",null,word + (info.pos ? " (" + info.pos + ")" : "")), document.createTextNode(" — " + (info.def || "")));
-  if (info.example) g.append(el("span","gex","e.g. " + info.example));
+  if (info.pt){ g.append(el("b",null,word), document.createTextNode(" — " + info.pt)); if (!info.def) return; g.append(el("br")); }
+  if (info.def){
+    g.append(el("b",null,(info.pt ? "" : word) + (info.lem ? " → " + info.lem : "") + (info.pos ? " (" + info.pos + ")" : "")), document.createTextNode(" — " + info.def));
+    if (info.example) g.append(el("span","gex","e.g. " + info.example));
+    (info.more || []).forEach(x => g.append(el("span","gmore",(x.pos ? "(" + x.pos + ") " : "") + x.def)));
+  }
   const a = el("a","cam px","CAMBRIDGE ↗"); a.href = "https://dictionary.cambridge.org/dictionary/english/" + encodeURIComponent(word.toLowerCase()); a.target = "_blank"; a.rel = "noopener";
   g.append(a);
 }
@@ -1226,16 +1248,19 @@ async function lookupWord(anchor, word, color){
   const mode = EN() ? "en" : "pt", key = mode + ":" + word.toLowerCase();
   if (DICT[key]){ fillGloss(g, word, DICT[key]); return; }
   if (mode === "pt"){ const lm = localMeaning(word); if (lm){ fillGloss(g, word, {pt: lm}); return; } }
-  if (!(window.EA && EA.user() && EA.define)){ g.textContent = tr("Entre na conta para ver o significado.", "Sign in to see the definition."); return; }
-  g.textContent = "…";
+  const off = await offlineInfo(word);
+  if (anchor._gloss !== g) return;
+  if (off && mode === "en"){ fillGloss(g, word, off); return; }
+  if (!(window.EA && EA.user() && EA.define)){ if (off) fillGloss(g, word, off); else g.textContent = tr("Entre na conta para ver o significado.", "Sign in to see the definition."); return; }
+  if (off) fillGloss(g, word, Object.assign({}, off, {pt: "…"})); else g.textContent = "…";
   const sentence = (anchor.closest(".line,.phr") || anchor.parentNode).textContent.slice(0, 240);
   try {
     const r = await EA.define(word, sentence, mode);
     const info = mode === "pt" ? {pt: String(r.pt || "").slice(0, 80)} : {def: String(r.def || "").slice(0, 200), example: String(r.example || "").slice(0, 200), pos: String(r.pos || "").slice(0, 20)};
     if (!info.pt && !info.def) throw 0;
     DICT[key] = info; const ks = Object.keys(DICT); if (ks.length > 500) delete DICT[ks[0]]; store("ea-dict", DICT);
-    if (anchor._gloss === g) fillGloss(g, word, info);
-  } catch(e) { if (anchor._gloss === g) g.textContent = e && e.code === "limit" ? tr("Limite da IA de hoje atingido.", "Daily AI limit reached.") : tr("Não consegui buscar agora.", "Couldn't look it up right now."); }
+    if (anchor._gloss === g) fillGloss(g, word, off ? Object.assign({}, off, info) : info);
+  } catch(e) { if (anchor._gloss === g && off){ fillGloss(g, word, off); return; } if (anchor._gloss === g) g.textContent = e && e.code === "limit" ? tr("Limite da IA de hoje atingido.", "Daily AI limit reached.") : tr("Não consegui buscar agora.", "Couldn't look it up right now."); }
 }
 document.addEventListener("click", e => {
   const w = e.target.closest && e.target.closest(".w"); if (!w) return;
@@ -1367,21 +1392,26 @@ async function wordSheet(text, sentence, anchor){
   const mode = EN() ? "en" : "pt", key = mode + ":" + text.toLowerCase();
   const show = info => {
     body.textContent = "";
-    if (info.pt){ body.append(el("span",null,info.pt)); return; }
-    if (info.pos) body.append(el("small","wpos",info.pos));
+    if (info.pt){ body.append(el("b",null,info.pt)); if (!info.def) return; }
+    if (info.pos || info.lem) body.append(el("small","wpos",(info.lem ? "→ " + info.lem + " · " : "") + (info.pos || "")));
     body.append(el("span",null,info.def || ""));
     if (info.example) body.append(el("span","gex","e.g. " + info.example));
+    (info.more || []).forEach(x => body.append(el("span","gmore",(x.pos ? "(" + x.pos + ") " : "") + x.def)));
     if (!/\s/.test(text)){ const c = el("a","cam px","CAMBRIDGE ↗"); c.href = "https://dictionary.cambridge.org/dictionary/english/" + encodeURIComponent(text.toLowerCase()); c.target = "_blank"; c.rel = "noopener"; body.append(c); }
   };
   if (DICT[key]) return show(DICT[key]);
   if (mode === "pt"){ const lm = localMeaning(text); if (lm) return show({pt: lm}); }
+  const off = /\s/.test(text) ? null : await offlineInfo(text);
+  if ($("wsheet") !== sh) return;
+  if (off && mode === "en") return show(off);
+  if (off) show(Object.assign({}, off, {pt: "…"}));
   if (!(window.EA && EA.user() && EA.define)){ body.textContent = tr("Entre na conta para ver o significado.","Sign in to see the definition."); return; }
   try {
     const r = await EA.define(text, sentence, mode);
     const info = mode === "pt" ? {pt: String(r.pt || "").slice(0, 120)} : {def: String(r.def || "").slice(0, 240), example: String(r.example || "").slice(0, 220), pos: String(r.pos || "").slice(0, 20)};
     DICT[key] = info; store("ea-dict", DICT);
-    if ($("wsheet") === sh) show(info);
-  } catch(e) { if ($("wsheet") === sh) body.textContent = e && e.code === "limit" ? tr("Limite da IA de hoje atingido.","Daily AI limit reached.") : tr("Não consegui buscar agora.","Couldn't look it up right now."); }
+    if ($("wsheet") === sh) show(off ? Object.assign({}, off, info) : info);
+  } catch(e) { if ($("wsheet") === sh && off){ show(off); return; } if ($("wsheet") === sh) body.textContent = e && e.code === "limit" ? tr("Limite da IA de hoje atingido.","Daily AI limit reached.") : tr("Não consegui buscar agora.","Couldn't look it up right now."); }
 }
 let selTimer = null;
 document.addEventListener("selectionchange", () => {
@@ -2091,7 +2121,7 @@ function renderSettingsExtra(m){
     EA.versions().then(v => { if (v.beta && v.beta !== v.current){ const t = el("a","act px","🧪 TESTAR v" + v.beta); t.href = "../../v/" + v.beta + "/"; aa.append(t); } });
   }
   a.append(aa); m.append(a);
-  const cr = el("p","credits"); cr.append(document.createTextNode("Criado por Kevin Paulo · @Arkev.arq · ")); const pl = el("a",null,"Privacidade"); pl.href = "../../politica.html"; cr.append(pl);
+  const cr = el("p","credits"); cr.append(document.createTextNode("Criado por Kevin Paulo · @Arkev.arq · ")); const pl = el("a",null,"Privacidade"); pl.href = "../../politica.html"; cr.append(pl); cr.append(document.createTextNode(" · Dicionário: Open English WordNet (CC BY 4.0)"));
   m.append(cr);
 }
 
@@ -2110,6 +2140,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-26e", d:"26/11", pt:["Dicionário de inglês dentro do app: ao tocar numa palavra a definição aparece na hora, sem esperar a IA"], en:["English dictionary built into the app: tap a word and the definition shows instantly, no waiting for the AI"]},
   {id:"2026-11-26d", d:"26/11", pt:["Cada tema tem sua própria conversa: a IA não mistura mais matéria, aula e caderno","Divisor no chat mostra quando o assunto muda, com botão ABRIR","Toque no tema no topo (▾) para trocar entre os temas recentes"], en:["Each topic has its own conversation: the tutor no longer mixes article, lesson and notebook","A divider in the chat shows when the topic changes, with an OPEN button","Tap the topic at the top (▾) to switch between recent topics"]},
   {id:"2026-11-26c", d:"26/11", pt:["Correção: as páginas fotografadas em MEUS CADERNOS agora ficam salvas na conta"], en:["Fix: pages photographed in MY NOTEBOOKS are now saved to your account"]},
   {id:"2026-11-26b", d:"26/11", pt:["Conversa mais natural: o desafio fica escondido no botão 🎯 e vale pontos","Acertos seguidos na conversa somam pontos (🔥 sequência)","Matérias: ligue a uma aula, título automático e atalhos 📰 no chat"], en:["More natural conversation: the challenge hides behind the 🎯 button and earns points","Correct sentences in a row earn points (🔥 streak)","Articles: link one to a lesson, automatic titles and 📰 shortcuts in the chat"]},
@@ -2170,7 +2201,7 @@ async function hydrate(u){
   const last = S.sessions.find(x => x.msgs.some(q => q.r === "u"));
   if (last && dayOf(last) === todayKey()) restoreSession(last);
   showScore(); S.view = "chat"; render();
-  $("login").hidden = true;
+  $("login").hidden = true; preloadDict();
   if (last && dayOf(last) === todayKey()) botSay(tr("Bem-vindo de volta! Continuando a conversa de hoje.", "Welcome back! Picking up today's conversation."), {icon:"chat"});
   else botSay("Hey " + (S.profile.me.name || "there") + "! Ask me anything in English about the lesson of " + fmt(S.date) + " — or type another date.", {icon:"chat"});
   if (S.tut) $("msgs").scrollTop = 0;
