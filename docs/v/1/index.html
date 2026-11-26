@@ -36,6 +36,18 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 main{flex:1;overflow-y:auto;padding:16px}
 main[hidden],.chat[hidden]{display:none}
 .lead{margin:0 0 14px;opacity:.8}
+.ctxdiv{display:flex;align-items:center;gap:8px;margin:14px 0 6px;padding:6px 8px;border-top:2px dashed rgba(255,255,255,.25);font-size:16px;opacity:.95}
+.ctxdiv i{width:10px;height:10px;flex:none}
+.ctxdiv span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctxdiv button{font-size:7px;padding:5px 7px;background:none;border:2px solid rgba(255,255,255,.4)}
+.ctx .caret{opacity:.6;margin-left:2px}
+.swnow{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:18px}
+.swnow i,.swrow i{width:12px;height:12px;flex:none}
+.swnow span{flex:1;min-width:0}
+.swlist{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px}
+.swrow{display:flex;align-items:center;gap:8px;text-align:left;padding:8px;background:var(--panel);border:2px solid var(--line);font-size:17px}
+.swrow span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.swrow small{opacity:.6;font-size:13px}
 .ref{display:inline;font-size:8px;padding:3px 6px;margin:0 2px;background:none;border:2px solid #29e6ff;color:#fff;vertical-align:middle;line-height:1.8}
 .chal{margin-top:8px;padding:8px 10px;border:2px dashed #ffd84a}
 .chalb{border-color:#ffd84a !important}
@@ -336,7 +348,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
   <main id="main" hidden></main>
   <section class="chat" id="chat" aria-label="Chat">
     <div class="cbar">
-      <button class="ctx" id="ctx" aria-label="Abrir a aula no caderno"></button>
+      <button class="ctx" id="ctx" aria-label="Trocar o tema da conversa"></button>
       <div class="levels" role="radiogroup" aria-label="Nível da resposta">
         <button class="lv px" data-lv="simple" role="radio">FÁCIL</button>
         <button class="lv px" data-lv="medium" role="radio">MÉDIO</button>
@@ -351,7 +363,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 11:01</div>
+    <div class="ver" id="ver">v1 · build 26/11 11:15</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -699,7 +711,7 @@ function renderPage(p, showDate){
   if (p.g && !EN()){ const tip = el("div","tip"); tip.append(el("span","px","DICA"), el("span",null,p.g)); box.append(tip); }
   const acts = el("div","acts");
   const talk = el("button","act main px",tr("CONVERSAR ►","TALK ►"));
-  talk.onclick = () => { S.view = "chat"; render(); botSay("Let's talk about \"" + p.t + "\". Ask me anything!", {icon:"chat"}); $("msg").focus(); };
+  talk.onclick = () => { if (S.view === "nb"){ S.ctx = "nb"; } else { S.ctx = "day"; S.date = p.d; } S.view = "chat"; render(); $("msg").focus(); };
   acts.append(talk);
   [[tr("PERGUNTA","QUESTION"),"q"],[tr("NEGATIVA","NEGATIVE"),"n"],[tr("OUTRO SUJEITO","OTHER SUBJECT"),"s"]].forEach(([l,k]) => { const b = el("button","act px",l); b.onclick = () => drill(p, k); acts.append(b); });
   box.append(acts);
@@ -918,6 +930,61 @@ function renderDiary(m){
     });
   });
 }
+/* ---------- troca de tema: cada tema tem sua conversa; um divisor mostra no chat quando o assunto muda ---------- */
+function ctxId(){ return S.ctx === "art" && S.art && S.art.id ? "art:" + S.art.id : S.ctx === "nb" ? "nb:" + S.topic : "day:" + S.date; }
+let lastCtxShown = null;
+function ctxSourceOpen(){
+  if (S.ctx === "art" && S.art && S.art.paras){ S.view = "read"; }
+  else if (S.ctx === "nb" && T[S.topic]){ S.view = "nb"; }
+  else { S.view = "day"; }
+  render();
+}
+function ctxDivider(){
+  const d = el("div","ctxdiv"), i = el("i"); i.style.background = ctxColor();
+  const lab = el("span",null,(S.ctx === "art" ? "" : S.ctx === "nb" ? "📒 " : "📅 ") + ctxLabel());
+  const open = el("button","px",tr("ABRIR","OPEN")); open.onclick = ctxSourceOpen;
+  d.append(i, lab, open); return d;
+}
+function syncCtx(){
+  if (S.view !== "chat") return;
+  const id = ctxId();
+  if (lastCtxShown === null){ lastCtxShown = id; return; }
+  if (id === lastCtxShown) return;
+  lastCtxShown = id; S.chal = null;
+  const key = todayKey() + "|" + id;
+  const sess = S.sessions.find(x => x.key === key);
+  S.cur = sess || null;
+  S.hist = sess ? sess.msgs.filter(q => q.r === "u" || q.r === "a").slice(-8).map(q => ({r: q.r, t: q.t})) : [];
+  const box = $("msgs");
+  if (box){ const lc = box.lastElementChild; if (lc && lc.classList.contains("ctxdiv")) lc.remove(); box.append(ctxDivider()); }
+}
+function openSwitcher(){
+  const old = $("switcher"); if (old){ old.remove(); return; }
+  const sh = el("div","wsheet"); sh.id = "switcher";
+  const top = el("div","wtop"), x = el("button","vbtn px","✕"); x.onclick = () => sh.remove();
+  top.append(el("b","px",tr("TEMA DA CONVERSA","CONVERSATION TOPIC")), x);
+  const now = el("div","swnow"), i = el("i"); i.style.background = ctxColor();
+  const open = el("button","act main px",tr("ABRIR ▸","OPEN ▸")); open.onclick = () => { sh.remove(); ctxSourceOpen(); };
+  now.append(i, el("span",null,ctxLabel()), open);
+  sh.append(top, now, el("small","hint",tr("Temas recentes — toque para voltar à conversa:","Recent topics — tap to go back to that conversation:")));
+  const seen = new Set([ctxId()]), list = el("div","swlist");
+  S.sessions.filter(q => q.cx && q.msgs.some(m => m.r === "u")).forEach(q => {
+    const id = q.cx.ctx === "art" ? "art:" + q.cx.art : q.cx.ctx === "nb" ? "nb:" + q.cx.topic : "day:" + q.cx.date;
+    if (seen.has(id) || seen.size > 9) return; seen.add(id);
+    if (q.cx.ctx === "art" && !S.arts.find(a => a.id === q.cx.art)) return;
+    if (q.cx.ctx === "nb" && !T[q.cx.topic]) return;
+    const b = el("button","swrow"), c = el("i"); const tps = sessTopics(q); c.style.background = q.cx.ctx === "art" ? "#29e6ff" : (tps[0] ? tps[0].c : "#fff");
+    const label = q.cx.ctx === "art" ? "📰 " + (q.cx.artTitle || "Article") : q.cx.ctx === "nb" ? "📒 " + topicName(q.cx.topic) : "📅 " + tr("Aula de ","Lesson of ") + fmt(q.cx.date);
+    b.append(c, el("span",null,label.slice(0, 60)), el("small",null,short(dayOf(q))));
+    b.onclick = () => { sh.remove(); restoreSession(q, true); lastCtxShown = ctxId(); S.view = "chat"; render(); };
+    list.append(b);
+  });
+  if (!list.children.length) list.append(el("small","hint",tr("Ainda não há outros temas.","No other topics yet.")));
+  const more = el("div","wacts"), cal = el("button","act px",tr("📅 AULAS","📅 LESSONS")), toc = el("button","act px",tr("📚 SUMÁRIO","📚 CONTENTS"));
+  cal.onclick = () => { sh.remove(); S.view = "day"; S.cal = true; render(); }; toc.onclick = () => { sh.remove(); S.view = "toc"; render(); };
+  more.append(cal, toc);
+  sh.append(list, more); document.body.append(sh);
+}
 /* volta para a conversa: reabre no chat o que foi falado e deixa a IA lembrar */
 function restoreSession(x, force){
   if (x.cx && (force || true)){
@@ -929,6 +996,7 @@ function restoreSession(x, force){
   S.hist = x.msgs.filter(q => q.r === "u" || q.r === "a").slice(-8).map(q => ({r: q.r, t: q.t}));
   [...$("msgs").querySelectorAll(".m, .more")].forEach(n => n.remove());
   replay(x.msgs.slice(-60));
+  lastCtxShown = ctxId();
 }
 function memoryText(){
   const past = S.sessions.filter(x => x !== S.cur && x.msgs.some(q => q.r === "u")).slice(0, 8);
@@ -1042,7 +1110,7 @@ function renderExport(m){
 
 let lastView = null;
 function render(){
-  applyLang();
+  applyLang(); syncCtx();
   if (S.view !== lastView){ if (lastView !== null) stopSpeech(); lastView = S.view; }
   const m = $("main"); m.textContent = ""; closeSheet();
   ["chat","day","toc","diary","me"].forEach(v => $("t-"+v).setAttribute("aria-selected", String(S.view===v || (v==="toc" && (S.view==="nb" || S.view==="read")) || (v==="me" && S.view==="export") || (v==="diary" && S.view==="conv"))));
@@ -1059,7 +1127,7 @@ function render(){
   else if (S.view === "read") renderReader(m);
   document.querySelectorAll(".lv").forEach(b => b.setAttribute("aria-checked", String(b.dataset.lv === S.level)));
   $("tutBtn").setAttribute("aria-pressed", String(S.tut));
-  const c = $("ctx"); c.textContent = ""; const i = el("i"); i.style.background = ctxColor(); c.append(i, document.createTextNode(ctxLabel()));
+  const c = $("ctx"); c.textContent = ""; const i = el("i"); i.style.background = ctxColor(); c.append(i, document.createTextNode(ctxLabel()), el("span","caret"," ▾"));
   m.scrollTop = 0;
   if (chat){ syncTutorial(); $("msgs").scrollTop = 1e9; }
 }
@@ -1259,8 +1327,7 @@ function renderReader(m){
   const talk = el("button","act main px",tr("CONVERSAR SOBRE ►","TALK ABOUT IT ►"));
   talk.onclick = () => {
     S.ctx = "art"; S.view = "chat"; render();
-    const lastBot = [...document.querySelectorAll("#msgs .m.bot .txt")].pop();
-    if (!lastBot || !lastBot._raw || lastBot._raw.indexOf(a.title) < 0) botSay(tr("Vamos falar da matéria “","Let's talk about “") + a.title + "”" + (a.lesson ? tr(", ligada à aula de "," — linked to your lesson of ") + fmt(a.lesson) : "") + ". What caught your attention? Ask me about any word or idea.", {icon:"book"});
+    $("msg").focus();
   };
   meta.append(talk); box.append(meta);
   /* ligar a matéria a uma aula */
@@ -1450,7 +1517,8 @@ async function askClaude(text, voice, mode, about){
   const instr = "You are the student's English tutor inside the notebook app \"English Arcade\". The student is Brazilian; details about him are below.\n" +
    "CONTEXT (" + ctxLabel() + "):\n" + lessonContext() + "\n\n" +
    "STUDENT'S WORLD (each person comes with their own places, objects and actions — keep them together): " + worldText() + "\n" +
-   (memoryText() ? "MEMORY OF PAST CONVERSATIONS (use it naturally to connect topics, recall what he told you and revisit his recurring mistakes; never invent memories):\n" + memoryText() + "\n" : "") +
+   "IMPORTANT: the CONTEXT above is the ONLY thing he means by 'this page', 'this lesson', 'this article' or 'this text'. Answer those questions only from CONTEXT, never from older conversations.\n" +
+   (memoryText() ? "BACKGROUND — older conversations about OTHER topics (only to recall facts about him or his recurring mistakes; never treat them as the current topic; never invent memories):\n" + memoryText() + "\n" : "") +
    (S.chal ? "He is answering this CHALLENGE you gave him: \"" + S.chal + "\". Judge it fairly and say if it's right.\n" : "") +
    (S.drill ? "He is answering this drill: " + S.drill.task + " \"" + S.drill.phrase + "\". Say if the transformation is right.\n" : "") +
    (about ? "Previous answer he wants to expand: " + about + "\n" : "") +
@@ -1892,7 +1960,7 @@ $("t-day").onclick = () => { S.view = "day"; render(); };
 $("t-toc").onclick = () => { S.view = "toc"; render(); };
 $("t-me").onclick = () => { S.view = "me"; render(); };
 $("t-diary").onclick = () => { S.view = "diary"; render(); };
-$("ctx").onclick = () => { if (S.ctx === "nb") S.view = "nb"; else { S.view = "day"; S.cal = true; } render(); };
+$("ctx").onclick = openSwitcher;
 $("calBtn").onclick = () => { S.view = "day"; S.cal = true; render(); };
 $("setBtn").onclick = () => { S.view = "settings"; render(); };
 $("tutBtn").onclick = () => { S.tut = !S.tut; store("ea-tut", S.tut); if (S.tut){ S.view = "chat"; } render(); if (S.tut) $("msgs").scrollTop = 0; };
@@ -2042,6 +2110,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-26d", d:"26/11", pt:["Cada tema tem sua própria conversa: a IA não mistura mais matéria, aula e caderno","Divisor no chat mostra quando o assunto muda, com botão ABRIR","Toque no tema no topo (▾) para trocar entre os temas recentes"], en:["Each topic has its own conversation: the tutor no longer mixes article, lesson and notebook","A divider in the chat shows when the topic changes, with an OPEN button","Tap the topic at the top (▾) to switch between recent topics"]},
   {id:"2026-11-26c", d:"26/11", pt:["Correção: as páginas fotografadas em MEUS CADERNOS agora ficam salvas na conta"], en:["Fix: pages photographed in MY NOTEBOOKS are now saved to your account"]},
   {id:"2026-11-26b", d:"26/11", pt:["Conversa mais natural: o desafio fica escondido no botão 🎯 e vale pontos","Acertos seguidos na conversa somam pontos (🔥 sequência)","Matérias: ligue a uma aula, título automático e atalhos 📰 no chat"], en:["More natural conversation: the challenge hides behind the 🎯 button and earns points","Correct sentences in a row earn points (🔥 streak)","Articles: link one to a lesson, automatic titles and 📰 shortcuts in the chat"]},
   {id:"2026-11-26a", d:"26/11", pt:["Novo: MATÉRIAS — cole um link ou texto e leia dentro do app","Toque ou selecione palavras para ver definição, exemplos, copiar ou levar ao chat"], en:["New: ARTICLES — paste a link or text and read it in the app","Tap or select words for definitions, examples, copy or send to chat"]},
