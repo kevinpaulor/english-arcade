@@ -284,7 +284,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 25/11 19:43</div>
+    <div class="ver" id="ver">v1 · build 25/11 22:13</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -319,7 +319,7 @@ const store = (k, v) => { try { localStorage.setItem(KP + k, JSON.stringify(v));
 
 const S = {view:"chat", ctx:"day", date:DATES[DATES.length-1], ym:null, cal:true, topic:null, tp:0,
   profile:normProfile(load("ea-profile", null)), open:null, level:load("ea-level","medium"),
-  tut:load("ea-tut", true), voice:load("ea-voice","soft"), meOpen:true, seen:load("ea-seen", []), log:load("ea-log", []), drills:load("ea-drills", 0), score:load("ea-score", 0), sessions:load("ea-sessions", []), cur:null, conv:null,
+  tut:load("ea-tut", true), voice:load("ea-voice","device"), meOpen:true, seen:load("ea-seen", []), log:load("ea-log", []), drills:load("ea-drills", 0), score:load("ea-score", 0), sessions:load("ea-sessions", []), cur:null, conv:null,
   drill:null, hist:[], busy:false};
 S.ym = S.date.slice(0,7);
 
@@ -871,7 +871,7 @@ function renderSettings(m){
   Object.entries(VOICES).forEach(([k,o]) => {
     const b = el("button","conv"); b.setAttribute("aria-pressed", String(S.voice === k)); if (S.voice === k) b.style.borderColor = "#fff";
     b.append(el("span","px", (S.voice === k ? "● " : "○ ") + o.n), el("small",null,o.d));
-    b.onclick = () => { S.voice = k; store("ea-voice", k); render(); };
+    b.onclick = () => { S.voice = k; store("ea-voice", k); store("ea-voice-set", true); persist(); render(); };
     v.append(b);
   });
   const t = el("div","acts");
@@ -1212,7 +1212,7 @@ const VOICES = {
   classic: {n:"8-BIT CLÁSSICO", d:"A voz do Commodore 64, crua e com chiado.", sam:{speed:72, pitch:64, throat:128, mouth:128}, filter:false},
   soft:    {n:"8-BIT SUAVE", d:"Mesma voz retrô, mais lenta e filtrada: menos ruído e interferência.", sam:{speed:82, pitch:70, throat:110, mouth:150}, filter:true},
   ai:      {n:"VOZ IA (GEMINI)", d:"Voz natural feita pela IA do Gemini, grátis dentro do limite diário. Precisa estar logado. Se falhar, uso a 8-BIT SUAVE.", sam:null, filter:false},
-  device:  {n:"VOZ DO APARELHO", d:"Voz natural do celular ou do computador. Se o aparelho não tiver voz, uso a 8-BIT SUAVE.", sam:null, filter:true}
+  device:  {n:"VOZ DO APARELHO", d:"Padrão. Voz natural do celular ou do computador, grátis e sem limite. Lê o inglês com voz em inglês e o português com voz em português.", sam:null, filter:true}
 };
 /* separa o texto em trechos em português e em inglês, para cada um ser lido com a pronúncia certa */
 const PT_WORDS = /\b(você|voce|não|nao|para|nós|nos|uma|um|que|com|isso|esse|essa|está|esta|são|sao|eu|ele|ela|meu|minha|seu|sua|os|as|do|da|dos|das|no|na|em|é|e|o|de|por|mais|muito|como|quando|onde|porque|então|também|aqui|hoje|amanhã|ontem|frase|palavra|tradução|traduza)\b/gi;
@@ -1323,6 +1323,23 @@ async function aiAudio(text, pt){
   if (aiCache.size > 24) aiCache.delete(aiCache.keys().next().value);
   aiCache.set(key, ab); return ab;
 }
+/* vozes do aparelho: no Android a lista chega alguns instantes depois de abrir o app */
+let voiceList = [];
+function deviceVoices(){
+  return new Promise(res => {
+    try { voiceList = speechSynthesis.getVoices() || []; } catch(e) { voiceList = []; }
+    if (voiceList.length) return res(voiceList);
+    let fin = false; const end = () => { if (fin) return; fin = true; try { voiceList = speechSynthesis.getVoices() || []; } catch(e) {} res(voiceList); };
+    try { speechSynthesis.addEventListener("voiceschanged", end, {once:true}); } catch(e) {}
+    setTimeout(end, 1200);
+  });
+}
+function pickVoice(list, pt){
+  const want = pt ? /^pt/i : /^en/i, pref = pt ? /^pt[-_]BR/i : /^en[-_]US/i;
+  const ok = list.filter(v => want.test(v.lang));
+  return ok.find(v => pref.test(v.lang) && v.localService) || ok.find(v => pref.test(v.lang)) || ok.find(v => v.localService) || ok[0] || null;
+}
+try { if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.addEventListener("voiceschanged", () => { try { voiceList = speechSynthesis.getVoices(); } catch(e) {} }); } } catch(e) {}
 async function speakText(text, btn, isMe){
   if (!text) return;
   if (playing && btn && playing === btn){ paused ? resumeSpeech() : pauseSpeech(); return; }
@@ -1338,17 +1355,25 @@ async function speakText(text, btn, isMe){
     } catch(e) {
       if (my !== speakSeq) return;
       console.warn("voz IA", e);
-      if (!aiVoiceWarned){ aiVoiceWarned = true; botSay(e && e.code === "limit" ? "A VOZ IA chegou ao limite de hoje. Usei a 8-BIT SUAVE." : "A VOZ IA não respondeu agora. Usei a 8-BIT SUAVE.", {icon:"help"}); }
+      if (!aiVoiceWarned){ aiVoiceWarned = true; botSay(e && e.code === "limit" ? "A VOZ IA chegou ao limite de hoje. Usei a voz do aparelho." : "A VOZ IA não respondeu agora. Usei a voz do aparelho.", {icon:"help"}); }
     }
   }
-  if (S.voice === "device"){
+  if (S.voice === "device" || S.voice === "ai"){
     if (tts){ try { engine = "tts"; await tts.speak(text, {language: pt ? "pt-BR" : "en"}); done(); return; } catch(e) {} }
-    const voices = (() => { try { return window.speechSynthesis ? speechSynthesis.getVoices() : []; } catch(e) { return []; } })();
-    const vPt = voices.find(x => /^pt/i.test(x.lang)), vEn = voices.find(x => /^en/i.test(x.lang));
-    if (vEn || vPt){ try {
-      engine = "web";
-      segs.forEach((sg, i) => { const v = (sg.pt ? vPt : vEn) || vEn || vPt; const u = new SpeechSynthesisUtterance(sg.t); u.voice = v; u.lang = v.lang; u.rate = 0.95; if (i === segs.length - 1){ u.onend = done; u.onerror = done; } speechSynthesis.speak(u); });
-      return; } catch(e) {} }
+    if (window.speechSynthesis && window.SpeechSynthesisUtterance){
+      const voices = await deviceVoices();
+      if (my !== speakSeq) return;
+      try {
+        engine = "web";
+        segs.forEach((sg, i) => {
+          const u = new SpeechSynthesisUtterance(sg.t), v = pickVoice(voices, sg.pt);
+          u.lang = v ? v.lang : (sg.pt ? "pt-BR" : "en-US"); if (v) { try { u.voice = v; } catch(e) {} } u.rate = 0.95;
+          if (i === segs.length - 1){ u.onend = done; u.onerror = done; }
+          speechSynthesis.speak(u);
+        });
+        return;
+      } catch(e) { console.warn("voz do aparelho", e); }
+    }
   }
   engine = "ctx";
   if (samSay(text, done, pt, segs)) return;
@@ -1359,7 +1384,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) stopS
 let srRec = null, recFin = "", recTmp = "", sendAfterRec = false, discardRec = false, waveStream = null, waveCtx = null, waveRaf = null, waveT0 = 0, waveLv = [], noWave = false, lastResultAt = 0, recStartedWithWave = false;
 function setMic(){
   const m = $("mic");
-  m.classList.toggle("srRec", listening);
+  m.classList.toggle("rec", listening);
   m.innerHTML = listening ? pix("stop",3) : pix("mic",3);
   m.setAttribute("aria-label", listening ? "Parar gravação" : "Gravar áudio");
   $("form").classList.toggle("recording", listening);
@@ -1469,7 +1494,7 @@ $("calBtn").onclick = () => { S.view = "day"; S.cal = true; render(); };
 $("setBtn").onclick = () => { S.view = "settings"; render(); };
 $("tutBtn").onclick = () => { S.tut = !S.tut; store("ea-tut", S.tut); if (S.tut){ S.view = "chat"; } render(); if (S.tut) $("msgs").scrollTop = 0; };
 
-function stateObj(){ return {score:S.score, drills:S.drills, seen:S.seen, level:S.level, voice:S.voice, tut:S.tut, msgs:S.log.filter(x => x.r === "u").length, log:S.log.slice(-120), upd:Date.now()}; }
+function stateObj(){ return {score:S.score, drills:S.drills, seen:S.seen, level:S.level, voice:S.voice, voiceSet:!!load("ea-voice-set", false), tut:S.tut, msgs:S.log.filter(x => x.r === "u").length, log:S.log.slice(-120), upd:Date.now()}; }
 function saveProfile(){
   store("ea-profile", S.profile);
   if (window.EA && EA.user()){ clearTimeout(saveTimer); saveTimer = setTimeout(() => { EA.saveProfile(S.profile).catch(e => console.warn(e)); }, 600); }
@@ -1615,7 +1640,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 let hydrated = null;
 async function hydrate(u){
   KP = "ea:" + u.uid + ":";
-  S.profile = normProfile(load("ea-profile", null)); S.level = load("ea-level","medium"); S.tut = load("ea-tut", true); S.voice = load("ea-voice","soft");
+  S.profile = normProfile(load("ea-profile", null)); S.level = load("ea-level","medium"); S.tut = load("ea-tut", true); S.voice = load("ea-voice","device");
   S.seen = load("ea-seen", []); S.log = load("ea-log", []); S.drills = load("ea-drills", 0); S.score = load("ea-score", 0); S.sessions = load("ea-sessions", []); S.cur = null; S.hist = [];
   clearMine();
   const [cloud] = await Promise.all([EA.loadAll(), loadMine().catch(e => console.warn("notebooks", e))]);
@@ -1625,7 +1650,7 @@ async function hydrate(u){
     if (typeof st.score === "number") S.score = Math.max(S.score, st.score);
     if (typeof st.drills === "number") S.drills = Math.max(S.drills, st.drills);
     (st.seen || []).forEach(d => { if (!S.seen.includes(d)) S.seen.push(d); });
-    if (st.level) S.level = st.level; if (st.voice) S.voice = st.voice; if (typeof st.tut === "boolean") S.tut = st.tut;
+    if (st.level) S.level = st.level; if (st.voice && st.voiceSet) S.voice = st.voice; if (typeof st.tut === "boolean") S.tut = st.tut;
     if (Array.isArray(st.log) && st.log.length > S.log.length) S.log = st.log;
   }
   (cloud.sessions || []).forEach(x => { const i = S.sessions.findIndex(q => q.id === x.id); if (i < 0) S.sessions.push(x); else if ((x.upd||0) > (S.sessions[i].upd||0)) S.sessions[i] = x; });
