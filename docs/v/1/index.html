@@ -370,12 +370,12 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:16px/1.45 'S
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <form class="inrow" id="form">
       <label for="msg" class="sr">Mensagem</label>
-      <textarea id="msg" rows="1" autocomplete="off" placeholder="Type in English…"></textarea>
+      <textarea id="msg" rows="1" autocomplete="off" enterkeyhint="enter" placeholder="Type in English…"></textarea>
       <div class="wave" id="wave" hidden><button type="button" class="wtrash" id="waveDel" aria-label="Descartar gravação"></button><div class="wmid"><canvas id="waveC"></canvas><span class="wlive" id="waveLive">Ouvindo…</span></div><span id="waveT" class="px">0:00</span></div>
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 18:58</div>
+    <div class="ver" id="ver">v1 · build 26/11 20:52</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -2216,7 +2216,8 @@ $("mic").onclick = () => {
 $("waveDel").innerHTML = pix("trash",2);
 $("waveDel").onclick = () => { discardRec = true; try { srRec && srRec.abort ? srRec.abort() : srRec.stop(); } catch(e) {} };
 $("msg").addEventListener("input", () => { growMsg(); if (!$("msg").value.trim()) voiceTurn = false; });
-$("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); if (!listening) submitNow(); } });
+/* Enter pula linha; no computador, Ctrl+Enter (ou ⌘+Enter) envia. No celular, envia pelo aviãozinho */
+$("msg").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.isComposing){ e.preventDefault(); if (!listening) submitNow(); } });
 
 /* ---------- input ---------- */
 function submitNow(){
@@ -2387,6 +2388,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-27h", d:"26/11", pt:["Enter agora pula linha na mensagem. Para enviar, toque no aviãozinho (no computador, Ctrl+Enter também envia)"], en:["Enter now adds a new line. To send, tap the paper plane (on a computer, Ctrl+Enter also sends)"]},
   {id:"2026-11-27g", d:"26/11", pt:["Velocidade do áudio: toque no 1× ao lado do play para ouvir mais devagar (0,85×, 0,7×, 0,5×)","As correções (FIX) agora também são lidas em voz alta"], en:["Audio speed: tap 1× next to play to listen slower (0.85×, 0.7×, 0.5×)","Corrections (FIX) are now read aloud too"]},
   {id:"2026-11-27f", d:"26/11", pt:["Nova fonte de leitura (Space Mono): textos do chat, caderno e matérias mais confortáveis de ler"], en:["New reading font (Space Mono): chat, notebook and article text is easier to read"]},
   {id:"2026-11-27e", d:"26/11", pt:["Correção: palavras repetidas nas respostas","Conversa com mais continuidade: a IA lembra mais mensagens e não se confunde com o desafio escondido"], en:["Fix: repeated words in replies","Better conversation flow: the tutor remembers more messages and is not confused by the hidden challenge"]},
