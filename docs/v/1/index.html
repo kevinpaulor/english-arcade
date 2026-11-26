@@ -351,7 +351,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 06:25</div>
+    <div class="ver" id="ver">v1 · build 26/11 11:01</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -552,12 +552,13 @@ async function readPhotos(files, nbId){
     const pg = {id: "p" + Date.now().toString(36) + n, nb: nb.id, d: isDay(res.date) ? res.date : todayKey(), t: res.title, s: res.summary, f: res.phrases, v: res.vocab, g: res.tip, fixes: res.fixes, created: Date.now()};
     const p = addMinePage(pg); rebuildIndex();
     let saved = true;
-    try { await EA.savePage(Object.assign({}, pg, {t: p.t, s: p.s, f: p.f, v: p.v, g: p.g, fixes: p.fixes, d: p.d}), thumb); } catch(e) { console.warn("savePage", e); saved = false; }
+    let saveErr = "";
+    try { await EA.savePage(Object.assign({}, pg, {t: p.t, s: p.s, f: p.f, v: p.v, g: p.g, fixes: p.fixes, d: p.d}), thumb); } catch(e) { console.warn("savePage", e); saved = false; saveErr = String(e && (e.code || e.message) || e).slice(0, 120); }
     lastPage = p;
     box.textContent = "";
     box.append(pixEl("book",2), document.createTextNode(tr(" Nova página em “"," New page in “") + nb.n + "”: " + p.t + (EN() ? "" : "\n" + (p.s || ""))));
     if (p.fixes.length) box.append(document.createTextNode(tr("\nCorrigi: ","\nFixed: ") + p.fixes.join(" · ")));
-    if (!saved) box.append(document.createTextNode("\n(Não consegui salvar na sua conta: falta publicar as regras novas do Firebase. Por enquanto ela fica só até fechar o app.)"));
+    if (!saved) box.append(document.createTextNode(tr("\n(Não consegui salvar na sua conta — ela fica só até fechar o app. Detalhe: ","\n(Couldn't save it to your account — it stays only until you close the app. Detail: ") + saveErr + ")"));
     box._raw = box.textContent;
   }
   if (lastPage){
@@ -2041,6 +2042,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-26c", d:"26/11", pt:["Correção: as páginas fotografadas em MEUS CADERNOS agora ficam salvas na conta"], en:["Fix: pages photographed in MY NOTEBOOKS are now saved to your account"]},
   {id:"2026-11-26b", d:"26/11", pt:["Conversa mais natural: o desafio fica escondido no botão 🎯 e vale pontos","Acertos seguidos na conversa somam pontos (🔥 sequência)","Matérias: ligue a uma aula, título automático e atalhos 📰 no chat"], en:["More natural conversation: the challenge hides behind the 🎯 button and earns points","Correct sentences in a row earn points (🔥 streak)","Articles: link one to a lesson, automatic titles and 📰 shortcuts in the chat"]},
   {id:"2026-11-26a", d:"26/11", pt:["Novo: MATÉRIAS — cole um link ou texto e leia dentro do app","Toque ou selecione palavras para ver definição, exemplos, copiar ou levar ao chat"], en:["New: ARTICLES — paste a link or text and read it in the app","Tap or select words for definitions, examples, copy or send to chat"]},
   {id:"2026-11-25d", d:"25/11", pt:["A conversa do dia volta quando você abre o app","A IA lembra das conversas anteriores","PESSOAL separado por dia e tema","Tela de carregamento nova e atualizações mais rápidas"], en:["Today's conversation comes back when you open the app","The tutor remembers past conversations","PERSONAL is organized by day and topic","New loading screen and faster updates"]},

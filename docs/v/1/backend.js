@@ -319,7 +319,7 @@ const EA = {
     try {
       const [a, b] = await Promise.all([getDocs(collection(db, "users", u.uid, "notebooks")), getDocs(collection(db, "users", u.uid, "pages"))]);
       a.forEach(d => out.notebooks.push(Object.assign({ id: d.id }, d.data())));
-      b.forEach(d => out.pages.push(Object.assign({ id: d.id }, d.data())));
+      b.forEach(d => { const x = Object.assign({ id: d.id }, d.data()); x.v = (x.v || []).map(p => p && typeof p === "object" && !Array.isArray(p) ? [p.w, p.m] : p); out.pages.push(x); });
     } catch (e) { console.warn("loadNotebooks", e); out.error = true; }
     return out;
   },
@@ -327,6 +327,8 @@ const EA = {
   async savePage(pg, img) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const x = plain(pg); delete x.id;
+    // O Firestore não aceita lista dentro de lista: o vocabulário vai como {w, m}.
+    x.v = (x.v || []).map(p => Array.isArray(p) ? { w: String(p[0] || ""), m: String(p[1] || "") } : p);
     await setDoc(doc(db, "users", u.uid, "pages", pg.id), x);
     if (img) await setDoc(doc(db, "users", u.uid, "pageimg", pg.id), { img });
   },
