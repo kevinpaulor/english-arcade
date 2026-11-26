@@ -220,18 +220,18 @@ const EA = {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const dref = doc(db, "users", u.uid, "days", today());
     if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
-    const w = String(word).slice(0, 40), ctx = String(sentence || "").slice(0, 240);
+    const w = String(word).slice(0, 300), ctx = String(sentence || "").slice(0, 240);
     const prompt = mode === "ex"
       ? "Word or expression: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON, all in English: {\"examples\": [\"three new, natural, varied example sentences using it with the same meaning\"]}."
       : mode === "pt"
-      ? "Word: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON {\"pt\": \"the Brazilian Portuguese translation of the word as used in this sentence, max 6 words\"}."
-      : "Word: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON, all in English, no Portuguese: {\"pos\": \"part of speech\", \"def\": \"a short, simple definition in the style of the Cambridge Learner's Dictionary, for the meaning used in this sentence, max 18 words\", \"example\": \"one new natural example sentence using the word\"}.";
+      ? "Word or expression: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON {\"pt\": \"the Brazilian Portuguese translation of it as used here (a whole sentence gets a full natural translation), max 40 words\"}."
+      : "Word or expression: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON, all in English, no Portuguese: {\"pos\": \"part of speech\", \"def\": \"a short, simple definition in the style of the Cambridge Learner's Dictionary for the meaning used here — if it is a whole sentence or clause, a simple English explanation of what it means and when people say it — max 35 words\", \"example\": \"one new natural example sentence using it\"}.";
     const order = chatModelOk ? [chatModelOk, ...CHAT_MODELS.filter(x => x !== chatModelOk)] : CHAT_MODELS;
     let last = null;
     for (const name of order) {
       try {
         const inst = await getAIInst();
-        const mdl = aiMod.getGenerativeModel(inst, { model: name, generationConfig: { responseMimeType: "application/json", maxOutputTokens: 200, temperature: 0.2 } });
+        const mdl = aiMod.getGenerativeModel(inst, { model: name, generationConfig: { responseMimeType: "application/json", maxOutputTokens: 400, temperature: 0.2 } });
         const r = await mdl.generateContent(prompt);
         const obj = JSON.parse(r.response.text().trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim());
         aiUsed.n++; setDoc(dref, { ai: increment(1) }, { merge: true }).catch(() => {});

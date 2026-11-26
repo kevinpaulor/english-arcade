@@ -169,6 +169,7 @@ main[hidden],.chat[hidden]{display:none}
 .txt{flex:1;white-space:pre-line}
 .ver{font-size:9px;line-height:1;opacity:.45;text-align:center;padding:0 0 5px;letter-spacing:.5px}
 .bub{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.bub.selectable .txt,.phr,.psum,.tip{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 .bub.copied{outline:2px solid #fff;outline-offset:2px}
 .copytag{position:fixed;left:50%;top:96px;transform:translateX(-50%);background:#fff;color:#120a24;padding:8px 12px;font-size:12px;z-index:99;pointer-events:none}
 .lab{font-family:'Press Start 2P',monospace;font-size:7px;display:block;margin:8px 0 4px;opacity:.7}
@@ -370,7 +371,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 13:26</div>
+    <div class="ver" id="ver">v1 · build 26/11 13:57</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -1491,7 +1492,7 @@ async function wordSheet(text, sentence, anchor){
   if (!(window.EA && EA.user() && EA.define)){ body.textContent = tr("Entre na conta para ver o significado.","Sign in to see the definition."); return; }
   try {
     const r = await EA.define(text, sentence, mode);
-    const info = mode === "pt" ? {pt: String(r.pt || "").slice(0, 120)} : {def: String(r.def || "").slice(0, 240), example: String(r.example || "").slice(0, 220), pos: String(r.pos || "").slice(0, 20)};
+    const info = mode === "pt" ? {pt: String(r.pt || "").slice(0, 300)} : {def: String(r.def || "").slice(0, 300), example: String(r.example || "").slice(0, 220), pos: String(r.pos || "").slice(0, 20)};
     DICT[key] = info; store("ea-dict", DICT);
     if ($("wsheet") === sh) show(off ? Object.assign({}, off, info) : info);
   } catch(e) { if ($("wsheet") === sh && off){ show(off); return; } if ($("wsheet") === sh) body.textContent = e && e.code === "limit" ? tr("Limite da IA de hoje atingido.","Daily AI limit reached.") : tr("Não consegui buscar agora.","Couldn't look it up right now."); }
@@ -1501,11 +1502,13 @@ document.addEventListener("selectionchange", () => {
   clearTimeout(selTimer);
   selTimer = setTimeout(() => {
     const sel = window.getSelection(); if (!sel || sel.isCollapsed) return;
-    const r = $("reader"); if (!r || !r.contains(sel.anchorNode)) return;
-    const t = sel.toString().replace(/\s+/g, " ").trim(); if (!t || t.length > 200 || !/[A-Za-z]/.test(t)) return;
-    const para = sel.anchorNode.parentElement && sel.anchorNode.parentElement.closest(".apara");
-    wordSheet(t, para ? para.textContent.slice(0, 240) : t);
-  }, 650);
+    const an = sel.anchorNode && (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement);
+    const zone = an && an.closest("#reader .apara, .m.bot .txt, .phr, .psum, .tip"); if (!zone) return;
+    if (zone.closest(".wsheet")) return;
+    const t = sel.toString().replace(/\s+/g, " ").trim(); if (!t || t.length > 300 || !/[A-Za-z]/.test(t)) return;
+    const para = zone;
+    wordSheet(t, para ? para.textContent.slice(0, 300) : t);
+  }, 600);
 });
 /* ---------- MÉDIO/NATIVO: traduz para inglês os textos fixos das telas (configurações, EU, PESSOAL, exportar…) ---------- */
 const UI_EN = {
@@ -1608,7 +1611,7 @@ function bubble(cls, voice, host){
   const pb = el("button","play"); pb.setAttribute("aria-label","Ouvir"); pb.innerHTML = PLAY;
   pb.onclick = () => speakText(speakable(t._raw || t.textContent), pb, cls === "me");
   b.append(t, pb); wrap.append(b); t._play = pb; t._wrap = wrap;
-  longPressCopy(b, t);
+  if (cls === "me") longPressCopy(b, t); else b.classList.add("selectable");
   (host || $("msgs")).append(wrap); if (!host) $("msgs").scrollTop = 1e9; return t;
 }
 function userSay(text, voice){ if (window.EA && EA.user()) EA.countMessage(); const t = bubble("me", voice); const ln = el("span","line"); namesText(ln, text); t.append(ln); t._raw = text; logMsg("u", text); rec("u", text, voice ? {v:1} : null); return t; }
@@ -2292,6 +2295,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-27c", d:"26/11", pt:["Selecione várias palavras (expressão ou frase) no chat e no caderno para ver o significado, exemplos, copiar ou perguntar"], en:["Select several words (an expression or a sentence) in the chat and notebook to see the meaning, examples, copy or ask about it"]},
   {id:"2026-11-27b", d:"26/11", pt:["Fotos de páginas: aviso ✓ quando salvam na conta; se a internet falhar, ficam no aparelho e são reenviadas sozinhas"], en:["Page photos: a ✓ shows when they are saved to your account; if the connection fails, they stay on the device and are re-sent automatically"]},
   {id:"2026-11-27a", d:"26/11", pt:["Calendário: segure uma data para selecionar e apagar aulas (só para você). Dá para restaurar depois"], en:["Calendar: press and hold a date to select and delete lessons (only for you). You can restore them later"]},
   {id:"2026-11-26f", d:"26/11", pt:["NATIVO e MÉDIO sem nenhum português: configurações, EU, PESSOAL, exportar, cadernos e palavras tocadas"], en:["NATIVE and MEDIUM with no Portuguese at all: settings, ME, PERSONAL, export, notebooks and tapped words"]},
