@@ -370,7 +370,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 13:22</div>
+    <div class="ver" id="ver">v1 · build 26/11 13:26</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -759,18 +759,20 @@ function renderPage(p, showDate){
 }
 
 /* calendário: segurar uma data seleciona (contorno verde); toque em outras para juntar; apagar só some para este usuário */
-const CALSEL = {on: false, days: new Set(), confirm: false};
+const CALSEL = {on: false, days: new Set(), confirm: false, lpAt: 0};
 function calSelBar(){
   const bar = el("div","calsel");
   if (!CALSEL.on){
-    bar.append(el("small","hint",tr("Segure uma data para selecionar e apagar aulas do seu calendário.","Press and hold a date to select and delete lessons from your calendar.")));
+    const pick = el("button","act px",tr("☑ SELECIONAR AULAS","☑ SELECT LESSONS"));
+    pick.onclick = () => { CALSEL.on = true; render(); };
+    bar.append(pick, el("small","hint",tr("Ou segure uma data. Apagar só some para você.","Or press and hold a date. Deleting only hides them for you.")));
     if (HIDDEN.size){ const r = el("button","act px",tr("RESTAURAR AULAS APAGADAS (","RESTORE DELETED LESSONS (") + HIDDEN.size + ")"); r.onclick = () => { HIDDEN.clear(); store("ea-hidden", []); rebuildIndex(); persist(); copyTag(tr("AULAS RESTAURADAS","LESSONS RESTORED")); render(); }; bar.append(r); }
     return bar;
   }
   const lesson = d => (byDate[d] || []).some(p => !p.mine);
   const n = [...CALSEL.days].filter(lesson).length;
   bar.classList.add("on");
-  bar.append(el("span","px",CALSEL.days.size + tr(" SELECIONADA" + (CALSEL.days.size > 1 ? "S" : ""), " SELECTED")));
+  bar.append(el("span","px",CALSEL.days.size ? CALSEL.days.size + tr(" SELECIONADA" + (CALSEL.days.size > 1 ? "S" : ""), " SELECTED") : tr("TOQUE NAS DATAS PARA SELECIONAR","TAP DATES TO SELECT")));
   const all = el("button","act px",tr("SELECIONAR TODAS","SELECT ALL"));
   all.onclick = () => { DATES.forEach(d => { if (lesson(d)) CALSEL.days.add(d); }); render(); };
   const del = el("button","act px delb", CALSEL.confirm ? tr("CONFIRMAR: APAGAR " + n,"CONFIRM: DELETE " + n) : tr("APAGAR","DELETE"));
@@ -809,14 +811,17 @@ function renderCal(m){
       b.setAttribute("aria-label", d + ": " + ps.map(p=>p.t).join("; "));
       if (CALSEL.on && CALSEL.days.has(key)) b.classList.add("pick");
       b.onclick = () => {
-        if (b._lp){ b._lp = false; return; }
-        if (CALSEL.on){ CALSEL.days.has(key) ? CALSEL.days.delete(key) : CALSEL.days.add(key); if (!CALSEL.days.size) CALSEL.on = false; render(); return; }
+        if (b._lp || Date.now() - CALSEL.lpAt < 900){ b._lp = false; return; }
+        if (CALSEL.on){ CALSEL.days.has(key) ? CALSEL.days.delete(key) : CALSEL.days.add(key); CALSEL.confirm = false; render(); return; }
         S.date = key; S.ctx = "day"; render();
       };
-      let lpT = null;
-      b.addEventListener("pointerdown", () => { clearTimeout(lpT); lpT = setTimeout(() => { b._lp = true; CALSEL.on = true; CALSEL.days.add(key); try { navigator.vibrate && navigator.vibrate(30); } catch(e) {} render(); }, 550); });
-      ["pointerup","pointerleave","pointercancel","pointermove"].forEach(ev => b.addEventListener(ev, e => { if (ev === "pointermove" && e.pointerType === "mouse") return; clearTimeout(lpT); }));
-      b.addEventListener("contextmenu", e => e.preventDefault());
+      let lpT = null, sx = 0, sy = 0;
+      const startSel = () => { if (b._lp || Date.now() - CALSEL.lpAt < 900) return; b._lp = true; CALSEL.lpAt = Date.now(); clearTimeout(lpT); CALSEL.on = true; CALSEL.days.add(key); try { navigator.vibrate && navigator.vibrate(30); } catch(e) {} render(); };
+      b.addEventListener("pointerdown", e => { sx = e.clientX; sy = e.clientY; b._lp = false; clearTimeout(lpT); lpT = setTimeout(startSel, 500); });
+      b.addEventListener("pointermove", e => { if (Math.abs(e.clientX - sx) > 12 || Math.abs(e.clientY - sy) > 12) clearTimeout(lpT); });
+      ["pointerup","pointercancel"].forEach(ev => b.addEventListener(ev, () => clearTimeout(lpT)));
+      // no Android, segurar o dedo dispara "contextmenu": usamos ele também para começar a seleção
+      b.addEventListener("contextmenu", e => { e.preventDefault(); startSel(); });
     } else { b.disabled = true; b.setAttribute("aria-label", d + ": sem anotação"); }
     if (key === S.date) b.classList.add("sel");
     g.append(b);
