@@ -9,19 +9,20 @@
 <link rel="apple-touch-icon" href="../../icon-192.png">
 <title>English Arcade</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <style>
 /* VOICE everyday study tool, played like a quiet arcade cabinet
    IDEA the notebook is a cartridge: the chat is the game screen, days and topics are levels
    PICTURE the chat itself, full screen, with pixel icons and lit keywords
    COLOUR night violet ground, white ink, topic colours only on shadows, borders and keywords
-   TYPE Press Start 2P labels + VT323 text
+   TYPE Press Start 2P labels + Space Mono text
    LAYOUT header, tabs, one view at a time; chat input pinned at the bottom */
 :root{color-scheme:dark;--bg:#120a24;--panel:#1b1036;--panel2:#24164a;--line:#3a2462;--ink:#fff;--pink:#ff3ea5;--cyan:#29e6ff;--yellow:#ffd84a}
 *{box-sizing:border-box;min-width:0}
 html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--ink);font:21px/1.2 'VT323',ui-monospace,monospace;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 'Space Mono',ui-monospace,monospace;overflow:hidden}
 button,input{font:inherit;color:inherit}
+input,textarea,select{font-size:16px}
 button{cursor:pointer}
 .px{font-family:'Press Start 2P',ui-monospace,monospace}
 .app{height:100%;max-width:640px;margin:0 auto;display:flex;flex-direction:column;border-left:2px solid var(--line);border-right:2px solid var(--line)}
@@ -36,18 +37,18 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 main{flex:1;overflow-y:auto;padding:16px}
 main[hidden],.chat[hidden]{display:none}
 .lead{margin:0 0 14px;opacity:.8}
-.ctxdiv{display:flex;align-items:center;gap:8px;margin:14px 0 6px;padding:6px 8px;border-top:2px dashed rgba(255,255,255,.25);font-size:16px;opacity:.95}
+.ctxdiv{display:flex;align-items:center;gap:8px;margin:14px 0 6px;padding:6px 8px;border-top:2px dashed rgba(255,255,255,.25);font-size:12px;opacity:.95}
 .ctxdiv i{width:10px;height:10px;flex:none}
 .ctxdiv span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ctxdiv button{font-size:7px;padding:5px 7px;background:none;border:2px solid rgba(255,255,255,.4)}
 .ctx .caret{opacity:.6;margin-left:2px}
-.swnow{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:18px}
+.swnow{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:13px}
 .swnow i,.swrow i{width:12px;height:12px;flex:none}
 .swnow span{flex:1;min-width:0}
 .swlist{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px}
-.swrow{display:flex;align-items:center;gap:8px;text-align:left;padding:8px;background:var(--panel);border:2px solid var(--line);font-size:17px}
+.swrow{display:flex;align-items:center;gap:8px;text-align:left;padding:8px;background:var(--panel);border:2px solid var(--line);font-size:12px}
 .swrow span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.swrow small{opacity:.6;font-size:13px}
+.swrow small{opacity:.6;font-size:12px}
 .day.pick{outline:3px solid #3ddc6b;outline-offset:1px}
 .calsel{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
 .calsel.on{padding:8px;border:2px solid #3ddc6b}
@@ -61,15 +62,15 @@ main[hidden],.chat[hidden]{display:none}
 .artlink select{background:var(--panel);color:#fff;border:2px solid var(--line);padding:8px;font:inherit;font-size:16px;max-width:100%}
 .reader{margin-top:12px}
 .rmeta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:6px 0 10px;opacity:.95}
-.apara{font-size:21px;line-height:1.45;margin:0 0 14px;-webkit-user-select:text;user-select:text}
+.apara{font-size:15px;line-height:1.7;margin:0 0 14px;-webkit-user-select:text;user-select:text}
 .apara .w.known{text-decoration:underline dotted #ffd84a;text-underline-offset:4px}
 .artform{display:flex;gap:8px;align-items:stretch}
-.artform textarea{flex:1;min-height:46px;background:var(--panel);border:2px solid var(--line);padding:8px 10px;font:inherit;font-size:18px;color:#fff;resize:vertical}
+.artform textarea{flex:1;min-height:46px;background:var(--panel);border:2px solid var(--line);padding:8px 10px;font:inherit;font-size:16px;color:#fff;resize:vertical}
 .wsheet{position:fixed;left:8px;right:8px;bottom:8px;z-index:70;background:#1e1438;border:3px solid #29e6ff;box-shadow:0 -6px 24px rgba(0,0,0,.5);max-height:58vh;overflow:auto;padding:10px 12px}
 .wtop{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:10px}
-.wbody{display:flex;flex-direction:column;gap:6px;margin:10px 0;font-size:19px;line-height:1.35}
+.wbody{display:flex;flex-direction:column;gap:6px;margin:10px 0;font-size:14px;line-height:1.5}
 .wbody .cam{align-self:flex-start;color:#fff;font-size:7px;border:2px solid rgba(255,255,255,.4);padding:5px 7px;text-decoration:none}
-.wpos{opacity:.6;font-size:14px}
+.wpos{opacity:.6;font-size:12px}
 .wex{display:flex;flex-direction:column;gap:4px;margin-top:6px;opacity:.9}
 .wacts{display:flex;flex-wrap:wrap;gap:8px}
 .phead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -93,19 +94,19 @@ main[hidden],.chat[hidden]{display:none}
 .nav{width:40px;height:34px;background:none;border:2px solid var(--line);font-size:9px}
 .grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:9px 8px;padding:0 6px 6px 0}
 .dow{font-size:7px;text-align:center;opacity:.6;padding:4px 0}
-.day{aspect-ratio:1;min-height:32px;border:2px solid transparent;background:#1e1732;font-size:19px;padding:0;display:grid;place-items:center;position:relative;opacity:.35}
+.day{aspect-ratio:1;min-height:32px;border:2px solid transparent;background:#1e1732;font-size:14px;padding:0;display:grid;place-items:center;position:relative;opacity:.35}
 .day.on{background:var(--panel2);border-color:var(--line);opacity:1}
 .day.sel{border-color:#fff}
 .day.empty{background:none}
 .day:disabled{cursor:default}
 .go{display:flex;gap:8px;margin-top:12px}
-.go input{flex:1;height:42px;background:var(--bg);border:2px solid var(--line);padding:0 10px;font-size:21px}
+.go input{flex:1;height:42px;background:var(--bg);border:2px solid var(--line);padding:0 10px;font-size:16px}
 .gobtn{height:42px;padding:0 14px;background:none;border:2px solid #fff;font-size:9px}
-.note{font-size:17px;opacity:.8;margin:8px 0 0;min-height:1em}
+.note{font-size:12px;opacity:.8;margin:8px 0 0;min-height:1em}
 /* lesson pages */
 .dayhead{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 12px}
 .dayhead .px{font-size:11px}
-.dayhead small{opacity:.7;font-size:18px}
+.dayhead small{opacity:.7;font-size:13px}
 .page{background:var(--panel);border:2px solid var(--line);padding:14px;margin-bottom:16px}
 .chip{display:inline-block;font-size:7px;line-height:1.5;padding:5px 7px;border:2px solid;background:none;margin-bottom:10px}
 .ptitle{font-size:12px;line-height:1.7;margin:0 0 4px}
@@ -113,14 +114,14 @@ main[hidden],.chat[hidden]{display:none}
 .sec{font-size:7px;opacity:.6;margin:14px 0 6px}
 .phr{padding:5px 0;border-top:1px dashed var(--line)}
 .kw{background:none;border:none;padding:0;font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
-.gloss{display:block;font-size:18px;margin:4px 0 2px;padding:4px 8px;background:var(--panel2);border-left:3px solid}
+.gloss{display:block;font-size:13px;margin:4px 0 2px;padding:4px 8px;background:var(--panel2);border-left:3px solid}
 .w{cursor:pointer;border-radius:2px}
 .w.on{background:rgba(255,255,255,.16);text-decoration:underline;text-underline-offset:3px}
 .gex{display:block;margin-top:4px;opacity:.85;font-style:italic}
 .gmore{display:block;margin-top:4px;opacity:.65;font-size:.9em}
 .gloss .cam{display:inline-block;margin-top:6px;font-size:7px;color:#fff;border:2px solid rgba(255,255,255,.4);padding:5px 7px;text-decoration:none}
 .voc.en{display:flex;flex-wrap:wrap;gap:6px 14px}
-.hint{display:block;margin-top:8px;opacity:.6;font-size:14px}
+.hint{display:block;margin-top:8px;opacity:.6;font-size:12px}
 .voc{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:3px 12px}
 .voc b{font-weight:700}
 .voc em{font-style:normal;opacity:.75}
@@ -135,7 +136,7 @@ main[hidden],.chat[hidden]{display:none}
 .trow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--panel);border:2px solid var(--line);padding:10px 12px;min-height:54px}
 .trow i{flex:none;width:14px;height:14px;background:var(--panel2)}
 .trow b{display:block;font-weight:400}
-.trow small{opacity:.65;font-size:17px}
+.trow small{opacity:.65;font-size:12px}
 .trow .px{margin-left:auto;font-size:8px;opacity:.7}
 .flip{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 14px}
 .flip .px{font-size:8px;opacity:.7}
@@ -150,17 +151,17 @@ main[hidden],.chat[hidden]{display:none}
 .add{display:flex;gap:8px}
 .add input{flex:1;height:42px;background:var(--bg);border:2px solid var(--line);padding:0 10px}
 .add button{height:42px;padding:0 12px;font-size:8px;background:none;border:2px solid #fff}
-.export pre{white-space:pre-wrap;overflow-wrap:anywhere;font:18px/1.2 'VT323',monospace;background:var(--panel);border:2px solid var(--line);padding:12px;max-height:50vh;overflow:auto;margin:0 0 12px}
+.export pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.45 'Space Mono',monospace;background:var(--panel);border:2px solid var(--line);padding:12px;max-height:50vh;overflow:auto;margin:0 0 12px}
 /* chat */
 .chat{flex:1;min-height:0;display:flex;flex-direction:column}
 .cbar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:2px solid var(--line)}
-.ctx{flex:1;background:none;border:none;text-align:left;padding:0;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctx{flex:1;background:none;border:none;text-align:left;padding:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ctx i{display:inline-block;width:10px;height:10px;margin-right:8px;vertical-align:0}
 .levels{display:flex;gap:4px}
 .lv{min-height:32px;padding:0 7px;font-size:7px;background:none;border:2px solid transparent;opacity:.55}
 .lv[aria-checked=true]{opacity:1;border-color:#fff}
 .msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
-.m{max-width:90%;font-size:21px;line-height:1.2}
+.m{max-width:90%;font-size:15px;line-height:1.5}
 .m.me{align-self:flex-end}
 .m.bot{align-self:flex-start}
 .bub{display:flex;gap:8px;align-items:flex-start;padding:9px 8px 9px 11px}
@@ -181,7 +182,7 @@ main[hidden],.chat[hidden]{display:none}
 .nospeak .play{display:none}
 .more{display:flex;gap:8px;margin-top:6px}
 .more button{min-height:32px;padding:0 8px;font-size:7px;background:none;border:2px solid var(--line)}
-.tut{background:var(--panel);border:2px solid var(--line);padding:14px;font-size:19px}
+.tut{background:var(--panel);border:2px solid var(--line);padding:14px;font-size:14px}
 .tut h2{font-size:10px;line-height:1.6;margin:0 0 8px;display:flex;align-items:center;gap:10px}
 .tut ol{margin:0 0 14px;padding-left:22px}
 .tut li{margin-bottom:4px}
@@ -189,14 +190,14 @@ main[hidden],.chat[hidden]{display:none}
 .tut .en h2{font-size:9px}
 .inrow{display:flex;gap:8px;padding:10px 16px 14px;border-top:2px solid var(--line)}
 .inrow{align-items:flex-end}
-.inrow textarea{flex:1;min-height:46px;max-height:168px;height:46px;background:var(--panel);border:2px solid var(--line);padding:8px 12px;font-size:21px;line-height:1.25;resize:none;overflow-y:auto;font-family:inherit;color:#fff;display:block}
+.inrow textarea{flex:1;min-height:46px;max-height:168px;height:46px;background:var(--panel);border:2px solid var(--line);padding:8px 12px;font-size:16px;line-height:1.4;resize:none;overflow-y:auto;font-family:inherit;color:#fff;display:block}
 .inrow textarea[hidden]{display:none}
 .wave{flex:1;height:46px;display:flex;align-items:center;gap:10px;border:2px solid var(--pink);background:#1e1732;padding:0 10px}
 .wave[hidden]{display:none}
 .wave{padding:0 8px 0 4px;gap:8px}
 .wmid{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px}
 .wave canvas{width:100%;height:16px;display:block}
-.wlive{font-size:13px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left;opacity:.85}
+.wlive{font-size:12px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left;opacity:.85}
 .wtrash{flex:none;width:34px;height:34px;display:grid;place-items:center;background:none;border:2px solid rgba(255,255,255,.35);padding:0}
 .wave span{font-size:11px;opacity:.8}
 .send,.mic{width:50px;height:46px;background:none;border:2px solid #fff;display:grid;place-items:center;padding:0}
@@ -211,7 +212,7 @@ main[hidden],.chat[hidden]{display:none}
 .pts.minus{border-color:var(--pink)}
 .conv{display:block;width:100%;text-align:left;background:var(--panel);border:2px solid var(--line);padding:10px 12px;margin-bottom:8px}
 .conv b{display:block;font-weight:400;margin:4px 0}
-.conv small{opacity:.65;font-size:17px}
+.conv small{opacity:.65;font-size:12px}
 .conv .px{font-size:7px;opacity:.75}
 .dgroup{font-size:8px;opacity:.6;margin:16px 0 8px}
 .tview{display:flex;flex-direction:column;gap:12px;margin:14px 0}
@@ -222,7 +223,7 @@ a.act{display:inline-flex;align-items:center;text-decoration:none;color:#fff}
 .person{background:var(--panel);border:2px solid var(--line);margin-bottom:10px}
 .phead{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;text-align:left;padding:10px 12px;min-height:50px}
 .phead b{font-weight:700}
-.phead small{opacity:.65;font-size:17px;margin-left:6px}
+.phead small{opacity:.65;font-size:12px;margin-left:6px}
 .phead .px{margin-left:auto;font-size:8px;opacity:.7}
 .swatch{flex:none;width:26px;height:26px;border:2px solid #fff;padding:0}
 .pbody{padding:0 12px 12px}
@@ -250,7 +251,7 @@ a.act{display:inline-flex;align-items:center;text-decoration:none;color:#fff}
 .spbar{width:200px;height:14px;border:3px solid #fff;padding:2px;box-sizing:content-box}
 .spbar i{display:block;height:100%;width:0;background:repeating-linear-gradient(90deg,#3ddc6b 0 10px,transparent 10px 12px);animation:spload 1.8s steps(16) infinite}
 .spblink{margin:0;font-family:"Press Start 2P",monospace;font-size:10px;letter-spacing:2px;animation:spblink 1s steps(1) infinite}
-.spcred{font-size:13px;opacity:.55;margin-top:8px}
+.spcred{font-size:12px;opacity:.55;margin-top:8px}
 @keyframes spbob{50%{transform:translateY(-6px)}}
 @keyframes spload{0%{width:0}100%{width:100%}}
 @keyframes spblink{50%{opacity:0}}
@@ -263,14 +264,14 @@ a.act{display:inline-flex;align-items:center;text-decoration:none;color:#fff}
 .lbox .sub{opacity:.75;margin:0 0 18px}
 .lbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:48px;margin-bottom:10px;background:none;border:2px solid var(--line);font-family:'Press Start 2P',monospace;font-size:9px}
 .lbtn.main{border-color:#fff;box-shadow:4px 4px 0 var(--pink)}
-.lfield{display:block;width:100%;height:46px;margin-bottom:8px;background:var(--panel);border:2px solid var(--line);padding:0 12px}
+.lfield{display:block;width:100%;height:46px;margin-bottom:8px;background:var(--panel);border:2px solid var(--line);padding:0 12px;font-size:16px}
 .lrow{display:flex;gap:8px}
 .lrow .lbtn{flex:1}
-.lerr{min-height:1.2em;color:#fff;margin:6px 0 12px;font-size:18px}
+.lerr{min-height:1.2em;color:#fff;margin:6px 0 12px;font-size:13px}
 .lerr.bad{border-left:3px solid var(--pink);padding-left:8px}
-.sep{display:flex;align-items:center;gap:10px;opacity:.6;font-size:16px;margin:14px 0}
+.sep{display:flex;align-items:center;gap:10px;opacity:.6;font-size:12px;margin:14px 0}
 .sep:before,.sep:after{content:"";flex:1;height:2px;background:var(--line)}
-.credits{opacity:.6;font-size:16px;text-align:center;margin:18px 0 4px}
+.credits{opacity:.6;font-size:12px;text-align:center;margin:18px 0 4px}
 .credits a{color:#fff}
 .ibtn.news{position:relative}
 .ndot{position:absolute;top:-5px;right:-5px;width:12px;height:12px;background:#ff3ea5;border:2px solid var(--panel)}
@@ -286,7 +287,7 @@ a.act{display:inline-flex;align-items:center;text-decoration:none;color:#fff}
 .mbox h2{font-family:'Press Start 2P',monospace;font-size:10px;line-height:1.6;margin:0 0 10px}
 .mbox h3{font-family:'Press Start 2P',monospace;font-size:8px;margin:14px 0 6px;opacity:.8}
 .mbox ol{margin:0;padding-left:22px}
-textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT323',monospace}
+textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:16px/1.45 'Space Mono',monospace}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 :focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
 </style>
@@ -371,7 +372,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 18:23</div>
+    <div class="ver" id="ver">v1 · build 26/11 18:47</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -2342,6 +2343,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-27f", d:"26/11", pt:["Nova fonte de leitura (Space Mono): textos do chat, caderno e matérias mais confortáveis de ler"], en:["New reading font (Space Mono): chat, notebook and article text is easier to read"]},
   {id:"2026-11-27e", d:"26/11", pt:["Correção: palavras repetidas nas respostas","Conversa com mais continuidade: a IA lembra mais mensagens e não se confunde com o desafio escondido"], en:["Fix: repeated words in replies","Better conversation flow: the tutor remembers more messages and is not confused by the hidden challenge"]},
   {id:"2026-11-27d", d:"26/11", pt:["O chat começa em conversa livre: escolher aula, caderno ou matéria no topo ▾ é opcional"], en:["The chat starts as a free conversation: picking a lesson, notebook or article at the top ▾ is optional"]},
   {id:"2026-11-27c", d:"26/11", pt:["Selecione várias palavras (expressão ou frase) no chat e no caderno para ver o significado, exemplos, copiar ou perguntar"], en:["Select several words (an expression or a sentence) in the chat and notebook to see the meaning, examples, copy or ask about it"]},
