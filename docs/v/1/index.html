@@ -290,7 +290,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 25/11 22:41</div>
+    <div class="ver" id="ver">v1 · build 25/11 23:15</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -540,14 +540,23 @@ function namesText(parent, str){
 }
 function markSeen(d){ if (!S.seen.includes(d)){ S.seen.push(d); store("ea-seen", S.seen); } }
 function logMsg(r, t){ S.log.push({r, t, c:ctxLabel(), ts:Date.now()}); S.log = S.log.slice(-120); store("ea-log", S.log); }
+/* uma conversa por dia e por tema: mudar de aula/caderno ou de dia abre outra conversa no PESSOAL */
+function ctxKey(){ return todayKey() + "|" + (S.ctx === "nb" ? "nb:" + S.topic : "day:" + S.date); }
+function ctxTopics(){ return [...new Set(ctxPages().map(p => p.k))]; }
 function rec(r, t, extra){
-  if (!S.cur){ if (r !== "u" && r !== "d") return; S.cur = {id:Date.now().toString(36), start:Date.now(), upd:Date.now(), ctx:ctxLabel(), msgs:[], pts:0}; S.sessions.unshift(S.cur); }
+  const key = ctxKey();
+  if (S.cur && S.cur.key && S.cur.key !== key) S.cur = null;
+  if (!S.cur){
+    if (r !== "u" && r !== "d") return;
+    S.cur = S.sessions.find(x => x.key === key) || null;
+    if (!S.cur){ S.cur = {id:Date.now().toString(36), key, day:todayKey(), start:Date.now(), upd:Date.now(), ctx:ctxLabel(), cx:{ctx:S.ctx, date:S.date, topic:S.topic, tp:S.tp}, tk:ctxTopics(), msgs:[], pts:0}; S.sessions.unshift(S.cur); }
+  }
   S.cur.msgs.push(Object.assign({r, t}, extra||{})); S.cur.msgs = S.cur.msgs.slice(-200);
-  S.cur.upd = Date.now(); S.cur.ctx = ctxLabel(); persist();
+  S.cur.upd = Date.now(); persist();
 }
 let cloudTimer = null;
 function persist(){
-  S.sessions.sort((a,b) => b.upd - a.upd); S.sessions = S.sessions.slice(0,60);
+  S.sessions.sort((a,b) => b.upd - a.upd); S.sessions = S.sessions.slice(0,150);
   store("ea-sessions", S.sessions); store("ea-score", S.score);
   if (window.EA && EA.user()){ clearTimeout(cloudTimer); const cur = S.cur; cloudTimer = setTimeout(async () => {
     try { await EA.saveState(stateObj()); if (cur) await EA.saveSession(cur); } catch(e) { console.warn(e); }
@@ -806,20 +815,54 @@ function renderMe(m){
 
 const fmtTs = ts => { const d = new Date(ts); return String(d.getDate()).padStart(2,"0") + "/" + String(d.getMonth()+1).padStart(2,"0") + "/" + d.getFullYear() + " · " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); };
 const plain = t => String(t).replace(/^\s*(SCORE)\s*:.*$/gim,"").replace(/\[\[(.+?)\|.+?\]\]/g,"$1").replace(/\{\w+\}\s*/g,"").replace(/^\s*FIX\s*:/gim,"Correção:").replace(/^\s*REPLY\s*:\s*/gim,"").replace(/^\s*YOUR TURN\s*:/gim,"Sua vez:").replace(/\n{2,}/g,"\n").trim();
+const dayOf = x => x.day || (d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"))(new Date(x.start));
+function sessTopics(x){ const ks = x.tk && x.tk.length ? x.tk : []; return ks.filter(k => T[k]).map(k => ({k, n: topicName(k), c: T[k].c})); }
 function renderDiary(m){
   const list = S.sessions.filter(x => x.msgs.some(q => q.r === "u"));
-  m.append(el("p","lead","Seu caderno pessoal: todas as conversas ficam guardadas. Abra para reler ou continuar de onde parou."));
-  if (!list.length){ m.append(el("p","note","Nenhuma conversa ainda. Mande uma mensagem no CHAT para começar.")); return; }
-  let lastDay = "";
-  list.forEach(x => {
-    const day = fmtTs(x.start).split(" · ")[0];
-    if (day !== lastDay){ m.append(el("div","dgroup px",day)); lastDay = day; }
-    const b = el("button","conv"), first = x.msgs.find(q => q.r === "u");
-    const n = x.msgs.filter(q => q.r === "u").length;
-    b.append(el("span","px", fmtTs(x.start).split(" · ")[1] + " · " + x.ctx.toUpperCase()), el("b",null,"“" + first.t.slice(0,90) + "”"), el("small",null, n + (n === 1 ? " mensagem" : " mensagens") + " · " + (x.pts >= 0 ? "+" : "") + x.pts + " pts"));
-    b.onclick = () => { S.conv = x.id; S.view = "conv"; render(); };
-    m.append(b);
+  m.append(el("p","lead",tr("Seu caderno pessoal: cada dia de uso, separado pelo tema da conversa. Abra para reler ou continuar de onde parou.","Your personal notebook: every day you used the app, split by conversation topic. Open one to reread it or carry on.")));
+  if (!list.length){ m.append(el("p","note",tr("Nenhuma conversa ainda. Mande uma mensagem no CHAT para começar.","No conversations yet. Send a message in CHAT to start."))); return; }
+  const days = {};
+  list.forEach(x => { const d = dayOf(x); (days[d] = days[d] || []).push(x); });
+  Object.keys(days).sort().reverse().forEach(d => {
+    const xs = days[d].sort((a,b) => a.start - b.start);
+    const pts = xs.reduce((a,x) => a + (x.pts || 0), 0), n = xs.reduce((a,x) => a + x.msgs.filter(q => q.r === "u").length, 0);
+    const head = el("div","dgroup px", fmt(d) + " · " + xs.length + tr(xs.length === 1 ? " TEMA" : " TEMAS", xs.length === 1 ? " TOPIC" : " TOPICS") + " · " + n + " MSG · " + (pts >= 0 ? "+" : "") + pts + " PTS");
+    m.append(head);
+    xs.forEach(x => {
+      const b = el("button","conv"), first = x.msgs.find(q => q.r === "u");
+      const tps = sessTopics(x), c = tps[0] ? tps[0].c : "#fff";
+      b.style.borderLeft = "6px solid " + c;
+      const label = (x.cx && x.cx.ctx === "nb" && T[x.cx.topic]) ? topicName(x.cx.topic) : (x.cx && x.cx.date ? tr("Aula de ","Lesson of ") + fmt(x.cx.date) : x.ctx);
+      const cnt = x.msgs.filter(q => q.r === "u").length;
+      b.append(el("span","px", label.toUpperCase() + (tps.length ? " · " + tps.map(t => t.n).join(" + ").toUpperCase() : "")),
+        el("b",null,"“" + first.t.slice(0,90) + "”"),
+        el("small",null, fmtTs(x.start).split(" · ")[1] + " · " + cnt + tr(cnt === 1 ? " mensagem" : " mensagens", cnt === 1 ? " message" : " messages") + " · " + ((x.pts||0) >= 0 ? "+" : "") + (x.pts||0) + " pts"));
+      b.onclick = () => { S.conv = x.id; S.view = "conv"; render(); };
+      m.append(b);
+    });
   });
+}
+/* volta para a conversa: reabre no chat o que foi falado e deixa a IA lembrar */
+function restoreSession(x, force){
+  if (x.cx && (force || true)){
+    if (x.cx.ctx === "nb" && T[x.cx.topic]){ S.ctx = "nb"; S.topic = x.cx.topic; S.tp = Math.min(x.cx.tp || 0, topicPages(x.cx.topic).length - 1); }
+    else if (x.cx.date && byDate[x.cx.date]){ S.ctx = "day"; S.date = x.cx.date; }
+  }
+  if (x.day === todayKey()) S.cur = x; else S.cur = null;
+  S.hist = x.msgs.filter(q => q.r === "u" || q.r === "a").slice(-8).map(q => ({r: q.r, t: q.t}));
+  [...$("msgs").querySelectorAll(".m, .more")].forEach(n => n.remove());
+  replay(x.msgs.slice(-60));
+}
+function memoryText(){
+  const past = S.sessions.filter(x => x !== S.cur && x.msgs.some(q => q.r === "u")).slice(0, 8);
+  if (!past.length) return "";
+  const lines = past.map(x => {
+    const said = x.msgs.filter(q => q.r === "u").slice(-3).map(q => q.t.slice(0, 80)).join(" | ");
+    const fixes = x.msgs.filter(q => q.r === "a").map(q => (q.t.match(/^\s*FIX\s*:\s*(.+)$/im) || [])[1]).filter(Boolean).slice(-2).map(f => f.slice(0, 90)).join(" | ");
+    const tps = sessTopics(x).map(t => TOPIC_EN[t.k] || t.n).join(" + ");
+    return "- " + short(dayOf(x)) + " (" + (tps || x.ctx) + "): he said: " + said + (fixes ? ". Fixed: " + fixes : "");
+  });
+  return lines.join("\n").slice(0, 1600);
 }
 function replay(msgs, host){
   msgs.forEach(q => {
@@ -837,9 +880,8 @@ function renderConv(m){
   const acts = el("div","acts");
   const cont = el("button","act main px","CONTINUAR CONVERSA ►");
   cont.onclick = () => {
-    S.cur = x; S.hist = x.msgs.filter(q => q.r === "u" || q.r === "a").slice(-8).map(q => ({r: q.r, t: q.t}));
-    [...$("msgs").querySelectorAll(".m, .more")].forEach(n => n.remove());
-    replay(x.msgs); S.view = "chat"; render();
+    restoreSession(x, true);
+    S.view = "chat"; render();
     botSay("Welcome back! Let's pick up where we left off.", {icon:"chat"});
   };
   const del = el("button","act px","APAGAR");
@@ -1140,6 +1182,7 @@ async function askClaude(text, voice, mode, about){
   const instr = "You are the student's English tutor inside the notebook app \"English Arcade\". The student is Brazilian; details about him are below.\n" +
    "CONTEXT (" + ctxLabel() + "):\n" + lessonContext() + "\n\n" +
    "STUDENT'S WORLD (each person comes with their own places, objects and actions — keep them together): " + worldText() + "\n" +
+   (memoryText() ? "MEMORY OF PAST CONVERSATIONS (use it naturally to connect topics, recall what he told you and revisit his recurring mistakes; never invent memories):\n" + memoryText() + "\n" : "") +
    (S.drill ? "He is answering this drill: " + S.drill.task + " \"" + S.drill.phrase + "\". Say if the transformation is right.\n" : "") +
    (about ? "Previous answer he wants to expand: " + about + "\n" : "") +
    "FORMAT (plain text, no markdown, each part on its own line):\n" +
@@ -1739,9 +1782,12 @@ async function hydrate(u){
   S.sessions.sort((a,b) => b.upd - a.upd);
   if (!S.profile.me.name && u.name) S.profile.me.name = u.name;
   [...$("msgs").querySelectorAll(".m, .more")].forEach(n => n.remove());
+  const last = S.sessions.find(x => x.msgs.some(q => q.r === "u"));
+  if (last && dayOf(last) === todayKey()) restoreSession(last);
   showScore(); S.view = "chat"; render();
   $("login").hidden = true;
-  botSay("Hey " + (S.profile.me.name || "there") + "! Ask me anything in English about the lesson of " + fmt(S.date) + " — or type another date.", {icon:"chat"});
+  if (last && dayOf(last) === todayKey()) botSay(tr("Bem-vindo de volta! Continuando a conversa de hoje.", "Welcome back! Picking up today's conversation."), {icon:"chat"});
+  else botSay("Hey " + (S.profile.me.name || "there") + "! Ask me anything in English about the lesson of " + fmt(S.date) + " — or type another date.", {icon:"chat"});
   if (S.tut) $("msgs").scrollTop = 0;
 }
 function bootEA(){

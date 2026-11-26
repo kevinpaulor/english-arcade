@@ -167,7 +167,7 @@ const EA = {
       const [p, s] = await Promise.all([getDoc(doc(db, "users", u.uid, "private", "profile")), getDoc(doc(db, "users", u.uid, "private", "state"))]);
       if (p.exists()) out.profile = p.data().profile;
       if (s.exists()) out.state = s.data();
-      const qs = await getDocs(query(collection(db, "users", u.uid, "chats"), orderBy("upd", "desc"), limit(60)));
+      const qs = await getDocs(query(collection(db, "users", u.uid, "chats"), orderBy("upd", "desc"), limit(200)));
       qs.forEach(d => out.sessions.push(d.data()));
     } catch (e) { console.warn("loadAll", e); out.error = true; }
     return out;
