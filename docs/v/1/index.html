@@ -370,7 +370,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 13:20</div>
+    <div class="ver" id="ver">v1 · build 26/11 13:22</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -493,6 +493,26 @@ function addMinePage(pg){
   P.push(p); return p;
 }
 function todayKey(){ const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+/* páginas que não conseguiram ir para a conta ficam guardadas no aparelho e são reenviadas quando o app abre */
+const nbData = t => ({id: t.id, title: t.n, titleEn: t.en || "", color: t.c, created: t.created || Date.now()});
+function pendAdd(pg, nb, img){
+  const list = load("ea-pend", []).filter(x => x.pg.id !== pg.id);
+  list.push({pg, nb, img});
+  try { store("ea-pend", list); } catch(e) { list[list.length - 1].img = ""; try { store("ea-pend", list); } catch(e2) {} }
+}
+const pendImg = id => { const x = load("ea-pend", []).find(q => q.pg.id === id); return x && x.img ? x.img : null; };
+async function pendRetry(){
+  const list = load("ea-pend", []); if (!list.length) return;
+  const left = [];
+  for (const x of list){
+    if (!T["u_" + x.nb.id]) addNotebook(x.nb);
+    if (!P.find(p => p.mine && p.id === x.pg.id)) addMinePage(x.pg);
+    try { await EA.saveNotebook(x.nb); await EA.savePage(x.pg, x.img || null); } catch(e) { console.warn("pendRetry", e); left.push(x); }
+  }
+  rebuildIndex();
+  try { store("ea-pend", left); } catch(e) {}
+  if (left.length < list.length) copyTag(tr("PÁGINAS PENDENTES SALVAS NA CONTA ✓","PENDING PAGES SAVED TO YOUR ACCOUNT ✓"));
+}
 async function loadMine(){
   clearMine();
   if (!(window.EA && EA.user() && EA.loadNotebooks)) return;
@@ -500,6 +520,7 @@ async function loadMine(){
   r.notebooks.sort((a, b) => (a.created || 0) - (b.created || 0)).forEach(addNotebook);
   r.pages.sort((a, b) => (a.created || 0) - (b.created || 0)).forEach(addMinePage);
   rebuildIndex();
+  if (!r.error) await pendRetry();
   if (S.view === "toc" || S.view === "day") render();
 }
 
@@ -531,7 +552,7 @@ function openViewer(items, start){
   show();
 }
 function scanItems(p){
-  if (p.mine) return [{label: tr("SUA FOTO","YOUR PHOTO"), load: () => EA.pageImage(p.id)}];
+  if (p.mine) return [{label: tr("SUA FOTO","YOUR PHOTO"), load: async () => { let x = null; try { x = await EA.pageImage(p.id); } catch(e) {} return x || pendImg(p.id); }}];
   return (SCANS[p.d] || []).map((f, j, all) => ({label: tr("CADERNO ","NOTEBOOK ") + short(p.d), src: SCAN_DIR + f}));
 }
 
@@ -576,12 +597,13 @@ async function readPhotos(files, nbId){
     const p = addMinePage(pg); rebuildIndex();
     let saved = true;
     let saveErr = "";
-    try { await EA.savePage(Object.assign({}, pg, {t: p.t, s: p.s, sEn: p.sEn, f: p.f, v: p.v, g: p.g, gEn: p.gEn, fixes: p.fixes, d: p.d}), thumb); } catch(e) { console.warn("savePage", e); saved = false; saveErr = String(e && (e.code || e.message) || e).slice(0, 120); }
+    const full = Object.assign({}, pg, {t: p.t, s: p.s, sEn: p.sEn, f: p.f, v: p.v, g: p.g, gEn: p.gEn, fixes: p.fixes, d: p.d});
+    try { await EA.saveNotebook(nbData(nb)); await EA.savePage(full, thumb); } catch(e) { console.warn("savePage", e); saved = false; saveErr = String(e && (e.code || e.message) || e).slice(0, 120); pendAdd(full, nbData(nb), thumb); }
     lastPage = p;
     box.textContent = "";
     box.append(pixEl("book",2), document.createTextNode(tr(" Nova página em “"," New page in “") + (EN() && nb.en ? nb.en : nb.n) + "”: " + p.t + (EN() ? "" : "\n" + (p.s || ""))));
     if (p.fixes.length) box.append(document.createTextNode(tr("\nCorrigi: ","\nFixed: ") + p.fixes.join(" · ")));
-    if (!saved) box.append(document.createTextNode(tr("\n(Não consegui salvar na sua conta — ela fica só até fechar o app. Detalhe: ","\n(Couldn't save it to your account — it stays only until you close the app. Detail: ") + saveErr + ")"));
+    box.append(document.createTextNode(saved ? tr("\n✓ Salva na sua conta.","\n✓ Saved to your account.") : tr("\n⚠ Não consegui salvar na conta agora (" + saveErr + "). Guardei neste aparelho e tento de novo sozinho quando o app abrir.","\n⚠ Couldn't save it to your account right now (" + saveErr + "). I kept it on this device and will retry automatically when the app opens.")));
     box._raw = box.textContent;
   }
   if (lastPage){
@@ -2265,6 +2287,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-27b", d:"26/11", pt:["Fotos de páginas: aviso ✓ quando salvam na conta; se a internet falhar, ficam no aparelho e são reenviadas sozinhas"], en:["Page photos: a ✓ shows when they are saved to your account; if the connection fails, they stay on the device and are re-sent automatically"]},
   {id:"2026-11-27a", d:"26/11", pt:["Calendário: segure uma data para selecionar e apagar aulas (só para você). Dá para restaurar depois"], en:["Calendar: press and hold a date to select and delete lessons (only for you). You can restore them later"]},
   {id:"2026-11-26f", d:"26/11", pt:["NATIVO e MÉDIO sem nenhum português: configurações, EU, PESSOAL, exportar, cadernos e palavras tocadas"], en:["NATIVE and MEDIUM with no Portuguese at all: settings, ME, PERSONAL, export, notebooks and tapped words"]},
   {id:"2026-11-26e", d:"26/11", pt:["Dicionário de inglês dentro do app: ao tocar numa palavra a definição aparece na hora, sem esperar a IA"], en:["English dictionary built into the app: tap a word and the definition shows instantly, no waiting for the AI"]},
