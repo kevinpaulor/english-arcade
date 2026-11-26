@@ -221,7 +221,9 @@ const EA = {
     const dref = doc(db, "users", u.uid, "days", today());
     if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
     const w = String(word).slice(0, 40), ctx = String(sentence || "").slice(0, 240);
-    const prompt = mode === "pt"
+    const prompt = mode === "ex"
+      ? "Word or expression: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON, all in English: {\"examples\": [\"three new, natural, varied example sentences using it with the same meaning\"]}."
+      : mode === "pt"
       ? "Word: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON {\"pt\": \"the Brazilian Portuguese translation of the word as used in this sentence, max 6 words\"}."
       : "Word: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON, all in English, no Portuguese: {\"pos\": \"part of speech\", \"def\": \"a short, simple definition in the style of the Cambridge Learner's Dictionary, for the meaning used in this sentence, max 18 words\", \"example\": \"one new natural example sentence using the word\"}.";
     const order = chatModelOk ? [chatModelOk, ...CHAT_MODELS.filter(x => x !== chatModelOk)] : CHAT_MODELS;
@@ -237,6 +239,30 @@ const EA = {
       } catch (e) { console.warn("define", name, e); last = e; }
     }
     throw { code: "ai", message: String(last && last.message || last) };
+  },
+  // ---------- Matérias: lê o texto de um link com a ferramenta "URL context" do Gemini ----------
+  async readUrl(url) {
+    const u = auth.currentUser; if (!u) throw { code: "auth" };
+    const dref = doc(db, "users", u.uid, "days", today());
+    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
+    const prompt = "Open this web page: " + String(url).slice(0, 500) + "\n" +
+      "The user wants to read it inside an English-learning reader app. Return exactly this format and nothing else:\n" +
+      "TITLE: <the headline>\nSOURCE: <the site or publication name>\nTEXT:\n<the main article body, paragraph by paragraph as written on the page, separated by blank lines. Skip menus, ads, photo captions, related links and comments.>\n" +
+      "If you cannot open the page or it has no article, return only the word ERROR.";
+    const order = [chatModelOk, "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.6-flash"].filter((x, i, a) => x && a.indexOf(x) === i);
+    let last = null;
+    for (const name of order) {
+      try {
+        const inst = await getAIInst();
+        const mdl = aiMod.getGenerativeModel(inst, { model: name, tools: [{ urlContext: {} }], generationConfig: { maxOutputTokens: 8192, temperature: 0 } });
+        const r = await mdl.generateContent(prompt);
+        const txt = (r.response.text() || "").trim();
+        aiUsed.n++; setDoc(dref, { ai: increment(1) }, { merge: true }).catch(() => {});
+        if (!txt || /^ERROR\b/.test(txt)) throw { code: "nopage" };
+        return txt;
+      } catch (e) { console.warn("readUrl", name, e); last = e; if (e && e.code === "nopage") break; }
+    }
+    throw { code: (last && last.code) || "ai", message: String(last && last.message || last) };
   },
   // ---------- Meus cadernos (fotos de páginas do aluno) ----------
   async readPage(b64, mime) {

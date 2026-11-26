@@ -36,6 +36,19 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 main{flex:1;overflow-y:auto;padding:16px}
 main[hidden],.chat[hidden]{display:none}
 .lead{margin:0 0 14px;opacity:.8}
+.reader{margin-top:12px}
+.rmeta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:6px 0 10px;opacity:.95}
+.apara{font-size:21px;line-height:1.45;margin:0 0 14px;-webkit-user-select:text;user-select:text}
+.apara .w.known{text-decoration:underline dotted #ffd84a;text-underline-offset:4px}
+.artform{display:flex;gap:8px;align-items:stretch}
+.artform textarea{flex:1;min-height:46px;background:var(--panel);border:2px solid var(--line);padding:8px 10px;font:inherit;font-size:18px;color:#fff;resize:vertical}
+.wsheet{position:fixed;left:8px;right:8px;bottom:8px;z-index:70;background:#1e1438;border:3px solid #29e6ff;box-shadow:0 -6px 24px rgba(0,0,0,.5);max-height:58vh;overflow:auto;padding:10px 12px}
+.wtop{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:10px}
+.wbody{display:flex;flex-direction:column;gap:6px;margin:10px 0;font-size:19px;line-height:1.35}
+.wbody .cam{align-self:flex-start;color:#fff;font-size:7px;border:2px solid rgba(255,255,255,.4);padding:5px 7px;text-decoration:none}
+.wpos{opacity:.6;font-size:14px}
+.wex{display:flex;flex-direction:column;gap:4px;margin-top:6px;opacity:.9}
+.wacts{display:flex;flex-wrap:wrap;gap:8px}
 .phead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .camb{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;font-size:7px;background:none;border:2px solid #fff}
 .camgo{display:inline-flex;align-items:center;gap:8px;min-height:44px}
@@ -316,7 +329,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 25/11 23:21</div>
+    <div class="ver" id="ver">v1 · build 26/11 05:57</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -405,8 +418,8 @@ $("mic").innerHTML = pix("mic",3); $("sendBtn").innerHTML = pix("send",3);
 /* ---------- helpers ---------- */
 const topicPages = k => P.filter(p => p.k === k);
 const ctxPages = () => { const r = S.ctx === "nb" && T[S.topic] ? [topicPages(S.topic)[S.tp]].filter(Boolean) : (byDate[S.date] || []); return r.length ? r : (byDate[S.date] || byDate[DATES[DATES.length-1]]); };
-const ctxColor = () => T[ctxPages()[0].k].c;
-const ctxLabel = () => S.ctx === "nb" && T[S.topic] ? topicName(S.topic) : (S.level !== "simple" ? "Lesson of " : "Aula de ") + fmt(S.date);
+const ctxColor = () => S.ctx === "art" && S.art && S.art.paras ? "#29e6ff" : T[ctxPages()[0].k].c;
+const ctxLabel = () => S.ctx === "art" && S.art && S.art.paras ? "📰 " + S.art.title.slice(0, 60) : S.ctx === "nb" && T[S.topic] ? topicName(S.topic) : (S.level !== "simple" ? "Lesson of " : "Aula de ") + fmt(S.date);
 /* ---------- páginas originais (fotos) e MEUS CADERNOS ---------- */
 const SCANS = window.SCANS || {};
 const SCAN_DIR = "../../scans/";
@@ -567,15 +580,15 @@ function namesText(parent, str){
 function markSeen(d){ if (!S.seen.includes(d)){ S.seen.push(d); store("ea-seen", S.seen); } }
 function logMsg(r, t){ S.log.push({r, t, c:ctxLabel(), ts:Date.now()}); S.log = S.log.slice(-120); store("ea-log", S.log); }
 /* uma conversa por dia e por tema: mudar de aula/caderno ou de dia abre outra conversa no PESSOAL */
-function ctxKey(){ return todayKey() + "|" + (S.ctx === "nb" ? "nb:" + S.topic : "day:" + S.date); }
-function ctxTopics(){ return [...new Set(ctxPages().map(p => p.k))]; }
+function ctxKey(){ return todayKey() + "|" + (S.ctx === "art" && S.art && S.art.id ? "art:" + S.art.id : S.ctx === "nb" ? "nb:" + S.topic : "day:" + S.date); }
+function ctxTopics(){ return S.ctx === "art" ? [] : [...new Set(ctxPages().map(p => p.k))]; }
 function rec(r, t, extra){
   const key = ctxKey();
   if (S.cur && S.cur.key && S.cur.key !== key) S.cur = null;
   if (!S.cur){
     if (r !== "u" && r !== "d") return;
     S.cur = S.sessions.find(x => x.key === key) || null;
-    if (!S.cur){ S.cur = {id:Date.now().toString(36), key, day:todayKey(), start:Date.now(), upd:Date.now(), ctx:ctxLabel(), cx:{ctx:S.ctx, date:S.date, topic:S.topic, tp:S.tp}, tk:ctxTopics(), msgs:[], pts:0}; S.sessions.unshift(S.cur); }
+    if (!S.cur){ S.cur = {id:Date.now().toString(36), key, day:todayKey(), start:Date.now(), upd:Date.now(), ctx:ctxLabel(), cx:{ctx:S.ctx, date:S.date, topic:S.topic, tp:S.tp, art:S.ctx === "art" && S.art ? S.art.id : null, artTitle:S.ctx === "art" && S.art ? S.art.title : null}, tk:ctxTopics(), msgs:[], pts:0}; S.sessions.unshift(S.cur); }
   }
   S.cur.msgs.push(Object.assign({r, t}, extra||{})); S.cur.msgs = S.cur.msgs.slice(-200);
   S.cur.upd = Date.now(); persist();
@@ -733,6 +746,19 @@ function renderToc(m){
     b.onclick = () => openTopic(k, ps[0].i); mine.append(b);
   });
   m.append(mine);
+  m.append(el("h2","ptitle px",tr("MATÉRIAS","ARTICLES")));
+  m.append(el("p","lead",tr("Cole o link de uma matéria (ou o texto dela) para ler aqui dentro, tocar nas palavras e conversar sobre ela.","Paste an article link (or its text) to read it here, tap any word and talk about it.")));
+  const af = el("form","artform"), ai = el("textarea"); ai.rows = 2; ai.placeholder = tr("https://… ou cole o texto","https://… or paste the text"); ai.setAttribute("aria-label", tr("Link ou texto da matéria","Article link or text"));
+  const ab = el("button","act main px",tr("LER ►","READ ►")); ab.type = "submit";
+  af.append(ai, ab); af.onsubmit = e => { e.preventDefault(); loadArticle(ai.value); };
+  m.append(af);
+  const al = el("div","toc"); al.style.margin = "12px 0 22px";
+  S.arts.forEach(a => {
+    const b = el("button","trow"), i = el("i"); i.style.boxShadow = "3px 3px 0 #29e6ff";
+    const tx = el("span"); tx.append(el("b",null,a.title), el("small",null,(a.source ? a.source + " · " : "") + fmtTs(a.ts).split(" · ")[0]));
+    b.append(i, tx, el("span","px","📰")); b.onclick = () => openArticle(a); al.append(b);
+  });
+  m.append(al);
   m.append(el("h2","ptitle px",tr("CADERNO DAS AULAS","LESSON NOTEBOOK")));
   m.append(el("p","lead",tr("Cada assunto é um caderno. Toque para folhear.","Each subject is a notebook. Tap to flip through it.")));
   const box = el("div","toc");
@@ -858,7 +884,7 @@ function renderDiary(m){
       const b = el("button","conv"), first = x.msgs.find(q => q.r === "u");
       const tps = sessTopics(x), c = tps[0] ? tps[0].c : "#fff";
       b.style.borderLeft = "6px solid " + c;
-      const label = (x.cx && x.cx.ctx === "nb" && T[x.cx.topic]) ? topicName(x.cx.topic) : (x.cx && x.cx.date ? tr("Aula de ","Lesson of ") + fmt(x.cx.date) : x.ctx);
+      const label = (x.cx && x.cx.ctx === "art") ? "📰 " + (x.cx.artTitle || "Article").slice(0, 50) : (x.cx && x.cx.ctx === "nb" && T[x.cx.topic]) ? topicName(x.cx.topic) : (x.cx && x.cx.date ? tr("Aula de ","Lesson of ") + fmt(x.cx.date) : x.ctx);
       const cnt = x.msgs.filter(q => q.r === "u").length;
       b.append(el("span","px", label.toUpperCase() + (tps.length ? " · " + tps.map(t => t.n).join(" + ").toUpperCase() : "")),
         el("b",null,"“" + first.t.slice(0,90) + "”"),
@@ -871,7 +897,8 @@ function renderDiary(m){
 /* volta para a conversa: reabre no chat o que foi falado e deixa a IA lembrar */
 function restoreSession(x, force){
   if (x.cx && (force || true)){
-    if (x.cx.ctx === "nb" && T[x.cx.topic]){ S.ctx = "nb"; S.topic = x.cx.topic; S.tp = Math.min(x.cx.tp || 0, topicPages(x.cx.topic).length - 1); }
+    if (x.cx.ctx === "art"){ const a = S.arts.find(q => q.id === x.cx.art); if (a){ S.art = a; S.ctx = "art"; } }
+    else if (x.cx.ctx === "nb" && T[x.cx.topic]){ S.ctx = "nb"; S.topic = x.cx.topic; S.tp = Math.min(x.cx.tp || 0, topicPages(x.cx.topic).length - 1); }
     else if (x.cx.date && byDate[x.cx.date]){ S.ctx = "day"; S.date = x.cx.date; }
   }
   if (x.day === todayKey()) S.cur = x; else S.cur = null;
@@ -993,9 +1020,9 @@ let lastView = null;
 function render(){
   applyLang();
   if (S.view !== lastView){ if (lastView !== null) stopSpeech(); lastView = S.view; }
-  const m = $("main"); m.textContent = "";
-  ["chat","day","toc","diary","me"].forEach(v => $("t-"+v).setAttribute("aria-selected", String(S.view===v || (v==="toc" && S.view==="nb") || (v==="me" && S.view==="export") || (v==="diary" && S.view==="conv"))));
-  if (S.view === "day") S.ctx = "day"; if (S.view === "nb") S.ctx = "nb";
+  const m = $("main"); m.textContent = ""; closeSheet();
+  ["chat","day","toc","diary","me"].forEach(v => $("t-"+v).setAttribute("aria-selected", String(S.view===v || (v==="toc" && (S.view==="nb" || S.view==="read")) || (v==="me" && S.view==="export") || (v==="diary" && S.view==="conv"))));
+  if (S.view === "day") S.ctx = "day"; if (S.view === "nb") S.ctx = "nb"; if (S.view === "read" && S.art && S.art.paras) S.ctx = "art";
   const chat = S.view === "chat"; m.hidden = chat; $("chat").hidden = !chat;
   if (S.view === "day") renderDay(m);
   else if (S.view === "toc") renderToc(m);
@@ -1005,6 +1032,7 @@ function render(){
   else if (S.view === "diary") renderDiary(m);
   else if (S.view === "settings") renderSettings(m);
   else if (S.view === "conv") renderConv(m);
+  else if (S.view === "read") renderReader(m);
   document.querySelectorAll(".lv").forEach(b => b.setAttribute("aria-checked", String(b.dataset.lv === S.level)));
   $("tutBtn").setAttribute("aria-pressed", String(S.tut));
   const c = $("ctx"); c.textContent = ""; const i = el("i"); i.style.background = ctxColor(); c.append(i, document.createTextNode(ctxLabel()));
@@ -1118,7 +1146,111 @@ async function lookupWord(anchor, word, color){
 }
 document.addEventListener("click", e => {
   const w = e.target.closest && e.target.closest(".w"); if (!w) return;
+  const sel = window.getSelection(); if (sel && !sel.isCollapsed) return;
+  if (w.closest("#reader")){ const p = w.closest(".apara"); wordSheet(w.textContent, p ? p.textContent.slice(0, 240) : w.textContent, w); return; }
   lookupWord(w, w.textContent, ctxColor());
+});
+/* ---------- MATÉRIAS: ler um artigo dentro do app, tocar/selecionar palavras e conversar sobre ele ---------- */
+S.arts = []; S.art = null;
+const isUrl = t => /^https?:\/\/\S+$/i.test(String(t).trim());
+function parseArticle(raw, url){
+  const t = String(raw).replace(/\r/g, "");
+  const title = (t.match(/^\s*TITLE:\s*(.+)$/im) || [])[1] || "";
+  const source = (t.match(/^\s*SOURCE:\s*(.+)$/im) || [])[1] || "";
+  let body = t.split(/^\s*TEXT:\s*$/im)[1];
+  if (body == null) body = t.replace(/^\s*(TITLE|SOURCE):.*$/gim, "");
+  const paras = body.split(/\n\s*\n|\n(?=\S)/).map(x => x.replace(/^[#>*\-\s]+/, "").replace(/\*\*/g, "").trim()).filter(x => x.length > 1).slice(0, 120).map(x => x.slice(0, 2500));
+  return {id: "a" + Date.now().toString(36), url: url || "", title: title.trim().slice(0, 160) || (paras[0] || "Article").slice(0, 80), source: source.trim().slice(0, 80), paras, ts: Date.now()};
+}
+function saveArts(){ S.arts = S.arts.slice(0, 12); store("ea-arts", S.arts); }
+function openArticle(a){ S.art = a; S.ctx = "art"; S.view = "read"; render(); }
+async function loadArticle(input){
+  const v = String(input || "").trim(); if (!v) return;
+  if (!isUrl(v)){
+    if (v.length < 80){ copyTag(tr("COLE O LINK OU O TEXTO DA MATÉRIA","PASTE THE LINK OR THE ARTICLE TEXT")); return; }
+    const a = parseArticle("TEXT:\n" + v, ""); a.title = v.split(/\n/)[0].slice(0, 90); S.arts.unshift(a); saveArts(); openArticle(a); return;
+  }
+  const old = S.arts.find(a => a.url === v); if (old){ openArticle(old); return; }
+  if (!(window.EA && EA.user() && EA.readUrl)){ copyTag(tr("ENTRE NA CONTA PARA ABRIR LINKS","SIGN IN TO OPEN LINKS")); return; }
+  S.view = "read"; S.art = {loading: v}; render();
+  try {
+    const raw = await EA.readUrl(v);
+    const a = parseArticle(raw, v);
+    if (a.paras.length < 2) throw {code: "nopage"};
+    S.arts.unshift(a); saveArts(); if (S.view === "read") openArticle(a);
+  } catch(e) {
+    S.art = {error: v, code: e && e.code}; if (S.view === "read") render();
+  }
+}
+const VOCAB_SET = () => { const s = new Set(); P.forEach(p => (p.v || []).forEach(v => String(v[0]).toLowerCase().split(/\s+/).length === 1 && s.add(String(v[0]).toLowerCase()))); return s; };
+function renderReader(m){
+  const a = S.art;
+  const back = el("button","fbtn px",tr("◀ MATÉRIAS","◀ ARTICLES")); back.onclick = () => { S.view = "toc"; render(); };
+  m.append(back);
+  if (!a){ S.view = "toc"; render(); return; }
+  if (a.loading){ m.append(el("p","note",tr("Abrindo a matéria… isso leva alguns segundos.","Opening the article… this takes a few seconds."))); return; }
+  if (a.error){
+    m.append(el("p","note", a.code === "limit" ? tr("A IA chegou ao limite de hoje.","Daily AI limit reached.") : tr("Não consegui abrir esse link (alguns sites bloqueiam ou pedem assinatura). Copie o texto da matéria e cole na caixa do SUMÁRIO.","I couldn't open that link (some sites block it or need a subscription). Copy the article text and paste it in the CONTENTS box.")));
+    return;
+  }
+  const box = el("article","reader"); box.id = "reader";
+  box.append(el("h2","ptitle px",a.title));
+  const meta = el("div","rmeta");
+  if (a.source) meta.append(el("span",null,a.source));
+  if (a.url){ const o = el("a","cam px",tr("ORIGINAL ↗","ORIGINAL ↗")); o.href = a.url; o.target = "_blank"; o.rel = "noopener"; meta.append(o); }
+  const talk = el("button","act main px",tr("CONVERSAR SOBRE ►","TALK ABOUT IT ►")); talk.onclick = () => { S.ctx = "art"; S.view = "chat"; render(); botSay(tr("Vamos falar da matéria “","Let's talk about “") + a.title + "”. What did you think about it? Ask me about any word or idea.", {icon:"book"}); };
+  meta.append(talk); box.append(meta);
+  box.append(el("small","hint",tr("Toque numa palavra para ver a tradução. Segure e arraste para selecionar uma expressão.","Tap a word for its definition. Press and drag to select an expression.")));
+  const vs = VOCAB_SET();
+  a.paras.forEach(t => { const p = el("p","apara",t); wordify(p); p.querySelectorAll(".w").forEach(w => { if (vs.has(w.textContent.toLowerCase())) w.classList.add("known"); }); box.append(p); });
+  m.append(box);
+}
+/* painel de palavra/expressão: definição, mais exemplos, copiar, mandar para o chat */
+function closeSheet(){ const s = $("wsheet"); if (s) s.remove(); document.querySelectorAll(".w.on").forEach(x => x.classList.remove("on")); }
+async function wordSheet(text, sentence, anchor){
+  closeSheet(); if (anchor) anchor.classList.add("on");
+  const sh = el("div","wsheet"); sh.id = "wsheet";
+  const top = el("div","wtop"), h = el("b","px",text.length > 60 ? text.slice(0, 60) + "…" : text), x = el("button","vbtn px","✕");
+  x.setAttribute("aria-label", tr("Fechar","Close")); x.onclick = closeSheet; top.append(h, x);
+  const body = el("div","wbody","…"), acts = el("div","wacts");
+  const exB = el("button","act px",tr("+ EXEMPLOS","+ EXAMPLES")), cpB = el("button","act px",tr("COPIAR","COPY")), chB = el("button","act main px",tr("PERGUNTAR NO CHAT","ASK IN CHAT"));
+  acts.append(exB, cpB, chB); sh.append(top, body, acts); document.body.append(sh);
+  cpB.onclick = async () => { const ok = await copyText(text); copyTag(ok ? tr("COPIADO ✓","COPIED ✓") : "✕"); };
+  chB.onclick = () => { closeSheet(); if (S.art && S.view === "read") S.ctx = "art"; S.view = "chat"; render(); $("msg").value = "\"" + text + "\" — "; growMsg(); $("msg").focus(); };
+  exB.onclick = async () => {
+    exB.disabled = true; const ex = el("div","wex","…"); body.append(ex);
+    try { const r = await EA.define(text, sentence, "ex"); ex.textContent = ""; (r.examples || []).slice(0, 4).forEach(s => ex.append(el("span",null,"• " + String(s).slice(0, 220)))); }
+    catch(e) { ex.textContent = tr("Não consegui buscar exemplos agora.","Couldn't get examples right now."); exB.disabled = false; }
+  };
+  const mode = EN() ? "en" : "pt", key = mode + ":" + text.toLowerCase();
+  const show = info => {
+    body.textContent = "";
+    if (info.pt){ body.append(el("span",null,info.pt)); return; }
+    if (info.pos) body.append(el("small","wpos",info.pos));
+    body.append(el("span",null,info.def || ""));
+    if (info.example) body.append(el("span","gex","e.g. " + info.example));
+    if (!/\s/.test(text)){ const c = el("a","cam px","CAMBRIDGE ↗"); c.href = "https://dictionary.cambridge.org/dictionary/english/" + encodeURIComponent(text.toLowerCase()); c.target = "_blank"; c.rel = "noopener"; body.append(c); }
+  };
+  if (DICT[key]) return show(DICT[key]);
+  if (mode === "pt"){ const lm = localMeaning(text); if (lm) return show({pt: lm}); }
+  if (!(window.EA && EA.user() && EA.define)){ body.textContent = tr("Entre na conta para ver o significado.","Sign in to see the definition."); return; }
+  try {
+    const r = await EA.define(text, sentence, mode);
+    const info = mode === "pt" ? {pt: String(r.pt || "").slice(0, 120)} : {def: String(r.def || "").slice(0, 240), example: String(r.example || "").slice(0, 220), pos: String(r.pos || "").slice(0, 20)};
+    DICT[key] = info; store("ea-dict", DICT);
+    if ($("wsheet") === sh) show(info);
+  } catch(e) { if ($("wsheet") === sh) body.textContent = e && e.code === "limit" ? tr("Limite da IA de hoje atingido.","Daily AI limit reached.") : tr("Não consegui buscar agora.","Couldn't look it up right now."); }
+}
+let selTimer = null;
+document.addEventListener("selectionchange", () => {
+  clearTimeout(selTimer);
+  selTimer = setTimeout(() => {
+    const sel = window.getSelection(); if (!sel || sel.isCollapsed) return;
+    const r = $("reader"); if (!r || !r.contains(sel.anchorNode)) return;
+    const t = sel.toString().replace(/\s+/g, " ").trim(); if (!t || t.length > 200 || !/[A-Za-z]/.test(t)) return;
+    const para = sel.anchorNode.parentElement && sel.anchorNode.parentElement.closest(".apara");
+    wordSheet(t, para ? para.textContent.slice(0, 240) : t);
+  }, 650);
 });
 /* ---------- segurar a mensagem = copiar ---------- */
 async function copyText(txt){
@@ -1197,6 +1329,7 @@ function followUp(label, mode, about){ if (S.busy) return; userSay(label); S.his
 
 /* ---------- Claude ---------- */
 function lessonContext(){
+  if (S.ctx === "art" && S.art && S.art.paras) return "ARTICLE he is reading in the app: \"" + S.art.title + "\"" + (S.art.source ? " (" + S.art.source + ")" : "") + "\n" + S.art.paras.join("\n").slice(0, 6000) + "\nTalk about this article: its ideas, vocabulary and expressions. Quote short bits of it when explaining.";
   return ctxPages().map(p => "• " + short(p.d) + " — " + p.t + " (" + T[p.k].n + ")\n  Phrases: " + p.f.join(" | ") + "\n  Vocabulary: " + (p.v||[]).map(v=>v[0]+" = "+v[1]).join("; ") + (p.g ? "\n  Tip: " + p.g : "")).join("\n");
 }
 const LEVEL_RULE = {simple:"SIMPLE level: short sentences and basic words (A2)", medium:"MEDIUM level: clear, natural English (B1-B2)", native:"NATIVE level: idiomatic, the way a native speaker would say it (C1)"};
@@ -1625,6 +1758,7 @@ $("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey
 /* ---------- input ---------- */
 function submitNow(){
   const v = $("msg").value.trim(); if (!v || S.busy) return;
+  if (isUrl(v)){ $("msg").value = ""; growMsg(); voiceTurn = false; loadArticle(v); return; }
   const voice = voiceTurn; voiceTurn = false;
   $("msg").value = ""; growMsg();
   if (S.view !== "chat"){ S.view = "chat"; render(); }
@@ -1798,7 +1932,7 @@ function hideSplash(){
 async function hydrate(u){
   KP = "ea:" + u.uid + ":";
   S.profile = normProfile(load("ea-profile", null)); S.level = load("ea-level","medium"); S.tut = load("ea-tut", true); S.voice = load("ea-voice","device");
-  S.seen = load("ea-seen", []); S.log = load("ea-log", []); S.drills = load("ea-drills", 0); S.score = load("ea-score", 0); S.sessions = load("ea-sessions", []); S.cur = null; S.hist = [];
+  S.seen = load("ea-seen", []); S.log = load("ea-log", []); S.drills = load("ea-drills", 0); S.score = load("ea-score", 0); S.sessions = load("ea-sessions", []); S.cur = null; S.hist = []; S.arts = load("ea-arts", []); S.art = null;
   clearMine();
   const [cloud] = await Promise.all([EA.loadAll(), loadMine().catch(e => console.warn("notebooks", e))]);
   if (cloud.profile) S.profile = normProfile(cloud.profile);
