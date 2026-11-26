@@ -179,7 +179,10 @@ main[hidden],.chat[hidden]{display:none}
 .vtag{font-family:'Press Start 2P',monospace;font-size:6px;display:block;margin-bottom:5px;opacity:.75}
 .play{flex:none;width:30px;height:30px;display:grid;place-items:center;background:none;border:2px solid rgba(255,255,255,.35);padding:0}
 .play.on{border-color:#fff}
-.nospeak .play{display:none}
+.nospeak .play,.nospeak .spd{display:none}
+.pcol{flex:none;display:flex;flex-direction:column;gap:4px;align-items:center}
+.spd{width:30px;height:22px;padding:0;background:none;border:2px solid rgba(255,255,255,.35);font:700 10px/1 'Space Mono',monospace;color:#fff;letter-spacing:-.5px}
+.spd.slow{border-color:#29e6ff;color:#29e6ff}
 .more{display:flex;gap:8px;margin-top:6px}
 .more button{min-height:32px;padding:0 8px;font-size:7px;background:none;border:2px solid var(--line)}
 .tut{background:var(--panel);border:2px solid var(--line);padding:14px;font-size:14px}
@@ -372,7 +375,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:16px/1.45 'S
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 18:47</div>
+    <div class="ver" id="ver">v1 · build 26/11 18:58</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -1622,7 +1625,8 @@ function bubble(cls, voice, host){
   if (voice) t.append(el("span","vtag",tr("ÁUDIO TRANSCRITO","VOICE MESSAGE")));
   const pb = el("button","play"); pb.setAttribute("aria-label","Ouvir"); pb.innerHTML = PLAY;
   pb.onclick = () => speakText(speakable(t._raw || t.textContent), pb, cls === "me");
-  b.append(t, pb); wrap.append(b); t._play = pb; t._wrap = wrap;
+  const pc = el("div","pcol"); pc.append(pb, spdBtn());
+  b.append(t, pc); wrap.append(b); t._play = pb; t._wrap = wrap;
   if (cls === "me") longPressCopy(b, t); else b.classList.add("selectable");
   (host || $("msgs")).append(wrap); if (!host) $("msgs").scrollTop = 1e9; return t;
 }
@@ -1840,8 +1844,8 @@ let dictBase = "", listening = false, voiceTurn = false, playing = null;
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 function speakable(raw){
   const lines = String(raw||"").split(/\n+/);
-  const keep = lines.filter(l => !/^\s*(FIX|SCORE)\s*:/i.test(l)).map(l => l.replace(/^\s*(REPLY|YOUR TURN)\s*:\s*/i,""));
-  return keep.join(" ").replace(/\[\[(.+?)\|.+?\]\]/g,"$1").replace(/\{\w+\}/g,"").replace(/\*\*/g,"").replace("ÁUDIO TRANSCRITO","").replace("VOICE MESSAGE","").trim().slice(0,1900);
+  const keep = lines.filter(l => !/^\s*(SCORE|CHALLENGE)\s*:/i.test(l)).map(l => l.replace(/^\s*FIX\s*:\s*/i, tr("Correção: ","Correction: ")).replace(/^\s*(REPLY|YOUR TURN)\s*:\s*/i,""));
+  return keep.map(l => l.trim()).filter(Boolean).map(l => /[.!?…:]$/.test(l) ? l : l + ".").join(" ").replace(/\[\[(.+?)\|.+?\]\]/g,"$1").replace(/\{\w+\}/g,"").replace(/\*\*/g,"").replace("ÁUDIO TRANSCRITO","").replace("VOICE MESSAGE","").trim().slice(0,1900);
 }
 let actx = null, samSrc = null, samVoices = {};
 const NUM_PT = ["zero","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez"];
@@ -1956,7 +1960,7 @@ function samSay(text, done, pt, segs){
     const gap = 22050 * 0.14, total = bufs.reduce((n,b) => n + b.length + gap, 0);
     const ab = actx.createBuffer(1, Math.ceil(total), 22050), ch = ab.getChannelData(0);
     let off = 0; bufs.forEach(b => { ch.set(b, Math.floor(off)); off += b.length + gap; });
-    samSrc = actx.createBufferSource(); samSrc.buffer = ab;
+    samSrc = actx.createBufferSource(); samSrc.buffer = ab; samSrc.playbackRate.value = RATE;
     let node = samSrc;
     if (VOICES[vk].filter){
       const hp = actx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 140;
@@ -1972,7 +1976,44 @@ function samSay(text, done, pt, segs){
   } catch(e) { return false; }
 }
 /* ---------- playback: one at a time, play ⇄ pause ---------- */
-let paused = false, engine = null, speakSeq = 0, aiVoiceWarned = false;
+let paused = false, engine = null, speakSeq = 0, aiVoiceWarned = false, aud = null, curSpeak = null;
+/* velocidade da fala: 1× e opções mais lentas; vale para todos os botões de ouvir */
+const RATES = [1, 0.85, 0.7, 0.5];
+let RATE = (() => { const r = +load("ea-rate", 1); return RATES.includes(r) ? r : 1; })();
+const rateLabel = r => r === 1 ? "1×" : String(r).replace(/^0/, "") + "×";
+function spdBtn(){
+  const b = el("button","spd" + (RATE < 1 ? " slow" : ""), rateLabel(RATE));
+  b.setAttribute("aria-label", tr("Velocidade da fala: ","Speech speed: ") + rateLabel(RATE));
+  b.onclick = e => { e.stopPropagation(); setRate(RATES[(RATES.indexOf(RATE) + 1) % RATES.length]); };
+  return b;
+}
+function setRate(r){
+  RATE = r; store("ea-rate", r);
+  document.querySelectorAll(".spd").forEach(b => { b.textContent = rateLabel(r); b.classList.toggle("slow", r < 1); b.setAttribute("aria-label", tr("Velocidade da fala: ","Speech speed: ") + rateLabel(r)); });
+  if (!playing) return;
+  if (engine === "aud" && aud){ aud.playbackRate = r; return; }
+  if (engine === "ctx" && samSrc && !(curSpeak && curSpeak.ai)){ try { samSrc.playbackRate.value = r; } catch(e) {} return; }
+  if (curSpeak && !paused){ const c = curSpeak; stopSpeech(); speakText(c.text, c.btn, c.isMe); }
+}
+/* áudio da IA como WAV num <audio>: deixa mais lento sem engrossar a voz */
+function wavURL(ab){
+  if (ab._url) return ab._url;
+  const d = ab.getChannelData(0), n = d.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf), rate = ab.sampleRate;
+  const w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  w(0,"RIFF"); v.setUint32(4, 36 + n * 2, true); w(8,"WAVE"); w(12,"fmt "); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,"data"); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++){ const x = Math.max(-1, Math.min(1, d[i])); v.setInt16(44 + i * 2, x < 0 ? x * 32768 : x * 32767, true); }
+  return ab._url = URL.createObjectURL(new Blob([buf], {type:"audio/wav"}));
+}
+function playAI(ab, done, my){
+  if (curSpeak) curSpeak.ai = true;
+  if (RATE === 1){ engine = "ctx"; playBuffer(ab, done); return; }
+  const a = aud = new Audio(wavURL(ab));
+  try { a.preservesPitch = true; a.webkitPreservesPitch = true; a.mozPreservesPitch = true; } catch(e) {}
+  a.playbackRate = RATE; engine = "aud";
+  a.onended = () => { if (aud === a) aud = null; done(); };
+  a.play().catch(() => { if (my !== speakSeq || aud !== a) return; aud = null; engine = "ctx"; playBuffer(ab, done); });
+}
 const aiCache = new Map();
 function btnIcon(btn, state){
   if (!btn) return;
@@ -1985,27 +2026,30 @@ function stopSpeech(){
   speakSeq++;
   try { if (samSrc){ samSrc.onended = null; samSrc.stop(); samSrc = null; } } catch(e) {}
   try { if (actx && actx.state === "suspended") actx.resume(); } catch(e) {}
+  try { if (aud){ aud.onended = null; aud.pause(); aud = null; } } catch(e) {}
   try { if (tts) tts.stop(); } catch(e) {}
   try { if (window.speechSynthesis){ speechSynthesis.cancel(); speechSynthesis.resume(); } } catch(e) {}
   if (playing) markIdle(playing);
-  playing = null; paused = false; engine = null;
+  playing = null; paused = false; engine = null; curSpeak = null;
 }
 function pauseSpeech(){
   if (!playing || paused) return;
-  if (engine === "ctx" && actx){ actx.suspend(); }
+  if (engine === "aud" && aud){ aud.pause(); }
+  else if (engine === "ctx" && actx){ actx.suspend(); }
   else if (engine === "web" && window.speechSynthesis){ speechSynthesis.pause(); }
   else { stopSpeech(); return; }
   paused = true; btnIcon(playing, "play");
 }
 function resumeSpeech(){
   if (!playing || !paused) return;
-  if (engine === "ctx" && actx) actx.resume();
+  if (engine === "aud" && aud) aud.play().catch(() => {});
+  else if (engine === "ctx" && actx) actx.resume();
   else if (engine === "web" && window.speechSynthesis) speechSynthesis.resume();
   paused = false; btnIcon(playing, "pause");
 }
 function playBuffer(ab, done){
   actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume();
-  samSrc = actx.createBufferSource(); samSrc.buffer = ab; samSrc.connect(actx.destination);
+  samSrc = actx.createBufferSource(); samSrc.buffer = ab; samSrc.playbackRate.value = RATE; samSrc.connect(actx.destination);
   samSrc.onended = () => { samSrc = null; done(); }; samSrc.start();
 }
 async function aiAudio(text, pt){
@@ -2046,15 +2090,15 @@ try { if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis
 async function speakText(text, btn, isMe){
   if (!text) return;
   if (playing && btn && playing === btn){ paused ? resumeSpeech() : pauseSpeech(); return; }
-  stopSpeech(); const my = speakSeq; playing = btn; markPlaying(btn);
+  stopSpeech(); const my = speakSeq; playing = btn; markPlaying(btn); curSpeak = {text, btn, isMe};
   const segs = isMe ? [{t: text, pt: false}] : langSegments(text);
   const pt = segs.every(x => x.pt), mixed = !pt && segs.some(x => x.pt);
-  const done = () => { if (my !== speakSeq) return; markIdle(btn); playing = null; paused = false; engine = null; };
+  const done = () => { if (my !== speakSeq) return; markIdle(btn); playing = null; paused = false; engine = null; curSpeak = null; };
   if (S.voice === "ai" && window.EA && EA.user() && EA.speak){
     try {
       const ab = await aiAudio(text, mixed ? "mix" : pt);
       if (my !== speakSeq) return;
-      engine = "ctx"; playBuffer(ab, done); return;
+      playAI(ab, done, my); return;
     } catch(e) {
       if (my !== speakSeq) return;
       console.warn("voz IA", e);
@@ -2062,7 +2106,7 @@ async function speakText(text, btn, isMe){
     }
   }
   if (S.voice === "device" || S.voice === "ai"){
-    if (tts){ try { engine = "tts"; await tts.speak(text, {language: pt ? "pt-BR" : "en"}); done(); return; } catch(e) {} }
+    if (tts){ try { engine = "tts"; await tts.speak(text, {language: pt ? "pt-BR" : "en", rate: RATE}); done(); return; } catch(e) {} }
     if (window.speechSynthesis && window.SpeechSynthesisUtterance){
       const voices = await deviceVoices();
       if (my !== speakSeq) return;
@@ -2070,7 +2114,7 @@ async function speakText(text, btn, isMe){
         engine = "web";
         segs.forEach((sg, i) => {
           const u = new SpeechSynthesisUtterance(sg.t), v = pickVoice(voices, sg.pt);
-          u.lang = v ? v.lang : (sg.pt ? "pt-BR" : "en-US"); if (v) { try { u.voice = v; } catch(e) {} } u.rate = 0.95;
+          u.lang = v ? v.lang : (sg.pt ? "pt-BR" : "en-US"); if (v) { try { u.voice = v; } catch(e) {} } u.rate = 0.95 * RATE;
           if (i === segs.length - 1){ u.onend = done; u.onerror = done; }
           speechSynthesis.speak(u);
         });
@@ -2343,6 +2387,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-27g", d:"26/11", pt:["Velocidade do áudio: toque no 1× ao lado do play para ouvir mais devagar (0,85×, 0,7×, 0,5×)","As correções (FIX) agora também são lidas em voz alta"], en:["Audio speed: tap 1× next to play to listen slower (0.85×, 0.7×, 0.5×)","Corrections (FIX) are now read aloud too"]},
   {id:"2026-11-27f", d:"26/11", pt:["Nova fonte de leitura (Space Mono): textos do chat, caderno e matérias mais confortáveis de ler"], en:["New reading font (Space Mono): chat, notebook and article text is easier to read"]},
   {id:"2026-11-27e", d:"26/11", pt:["Correção: palavras repetidas nas respostas","Conversa com mais continuidade: a IA lembra mais mensagens e não se confunde com o desafio escondido"], en:["Fix: repeated words in replies","Better conversation flow: the tutor remembers more messages and is not confused by the hidden challenge"]},
   {id:"2026-11-27d", d:"26/11", pt:["O chat começa em conversa livre: escolher aula, caderno ou matéria no topo ▾ é opcional"], en:["The chat starts as a free conversation: picking a lesson, notebook or article at the top ▾ is optional"]},
