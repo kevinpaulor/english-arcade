@@ -375,7 +375,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:16px/1.45 'S
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 20:52</div>
+    <div class="ver" id="ver">v1 · build 26/11 20:57</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -984,7 +984,7 @@ function renderMe(m){
 }
 
 const fmtTs = ts => { const d = new Date(ts); return String(d.getDate()).padStart(2,"0") + "/" + String(d.getMonth()+1).padStart(2,"0") + "/" + d.getFullYear() + " · " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); };
-const histText = h => h.r === "u" ? h.t : String(h.t).split(/\n+/).filter(l => !/^\s*(SCORE|CHALLENGE|YOUR TURN)\s*:/i.test(l)).map(l => l.replace(/^\s*REPLY\s*:\s*/i, "").replace(/^\s*FIX\s*:\s*/i, "(correction) ").replace(/\[\[(.+?)\|.+?\]\]/g, "$1").replace(/\{\w+\}\s*/g, "")).join(" ").slice(0, 600);
+const histText = h => h.r === "u" ? h.t : cleanMarks(h.t).split(/\n+/).filter(l => !/^\s*(SCORE|CHALLENGE|YOUR TURN)\s*:/i.test(l)).map(l => l.replace(/^\s*REPLY\s*:\s*/i, "").replace(/^\s*FIX\s*:\s*/i, "(correction) ").replace(/\[\[(.+?)\|.+?\]\]/g, "$1").replace(/\{\w+\}\s*/g, "")).join(" ").slice(0, 600);
 const plain = t => String(t).replace(/^\s*(SCORE)\s*:.*$/gim,"").replace(/\[\[(.+?)\|.+?\]\]/g,"$1").replace(/\{\w+\}\s*/g,"").replace(/^\s*FIX\s*:/gim,"Correção:").replace(/^\s*REPLY\s*:\s*/gim,"").replace(/^\s*YOUR TURN\s*:/gim,"Sua vez:").replace(/\n{2,}/g,"\n").trim();
 const dayOf = x => x.day || (d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"))(new Date(x.start));
 function sessTopics(x){ const ks = x.tk && x.tk.length ? x.tk : []; return ks.filter(k => T[k]).map(k => ({k, n: topicName(k), c: T[k].c})); }
@@ -1635,10 +1635,18 @@ function botSay(text, o){ o = o || {}; const t = bubble("bot", false, o.host); i
 
 const LABS = {pt:{FIX:"CORREÇÃO", REPLY:"", "YOUR TURN":"SUA VEZ"}, en:{FIX:"FIX", REPLY:"", "YOUR TURN":"YOUR TURN"}};
 /* a IA às vezes escreve a palavra e repete a marcação: "pragmatic [[pragmatic|…]]" → tira a repetição */
+const LEAK = /^\s*(CONTEXT|CONTINUITY|KEEP THE THREAD|JUDGING|STYLE|LANGUAGE|FORMAT|BACKGROUND|MEMORY|IMPORTANT|STUDENT'S WORLD)\b[^:]{0,40}:/i;
+function cleanMarks(text){
+  return String(text).split("\n").filter(l => !LEAK.test(l)).join("\n")
+    .replace(/\[\[([^\[\]|]+?)\|([^\[\]]+?)\]\]/g, (_, a, b) => "\u0001" + a + "\u0002" + b + "\u0003")
+    .replace(/\[\[|\]\]/g, "")
+    .replace(/\u0001/g, "[[").replace(/\u0002/g, "|").replace(/\u0003/g, "]]");
+}
 function dedupeKw(text){
+  text = cleanMarks(text);
   const norm = w => w.toLowerCase().replace(/[^a-z0-9']/g, "");
   return String(text).replace(/^(.*)$/gm, line => {
-    let out = "", rest = line, m; const re = /\[\[(.+?)\|(.+?)\]\]/;
+    let out = "", rest = line, m; const re = /\[\[([^\[\]|]+?)\|([^\[\]]+?)\]\]/;
     while ((m = rest.match(re))){
       let before = out + rest.slice(0, m.index), after = rest.slice(m.index + m[0].length);
       const kw = m[1].split(/\s+/).map(norm).filter(Boolean);
@@ -1674,7 +1682,7 @@ function richLine(parent, text, color){
   const ic = rest.match(/^\s*([{\[(]{0,2})\s*([a-z]+)\s*([}\])]{0,2})\s+/i);
   if (ic && ICONS[ic[2].toLowerCase()] && (ic[1] || /^\s*\S+\s+[A-Z"“]/.test(rest))){ line.append(pixEl(ic[2].toLowerCase(),2)); rest = rest.slice(ic[0].length); }
   rest = rest.replace(/\{(\w+)\}\s*/g, "");
-  const re = /\[\[(.+?)\|(.+?)\]\]|\*\*(.+?)\*\*/g; let last = 0, m;
+  const re = /\[\[([^\[\]|]+?)\|([^\[\]]+?)\]\]|\*\*(.+?)\*\*/g; let last = 0, m;
   while ((m = re.exec(rest))){
     namesText(line, rest.slice(last, m.index));
     if (m[1]) line.append(kwButton(m[1], m[1] + " — " + m[2], color));
@@ -1758,14 +1766,14 @@ async function askClaude(text, voice, mode, about){
    (S.chal ? "He is answering this CHALLENGE you gave him: \"" + S.chal + "\". Judge it fairly and say if it's right.\n" : "") +
    (S.drill ? "He is answering this drill: " + S.drill.task + " \"" + S.drill.phrase + "\". Say if the transformation is right.\n" : "") +
    (about ? "Previous answer he wants to expand: " + about + "\n" : "") +
-   "FORMAT (plain text, no markdown, each part on its own line):\n" +
+   "KEEP THE THREAD (a rule, not a line to write): you are in the middle of a conversation. Read CONVERSATION SO FAR and continue it: remember what he said, refer back to it, and never restart the topic. If he asks you to repeat, rewrite or 'build the sentence again', rewrite HIS last sentence (or your correction of it) in full, correctly. Never answer an exercise he did not receive.\n" +
+   "FORMAT (plain text, no markdown, each part on its own line). Write ONLY these labels: FIX, REPLY, SCORE, CHALLENGE — never write any other label (no CONTEXT, CONTINUITY, JUDGING, STYLE…):\n" +
    "FIX: only if his message has a REAL English mistake (grammar or a wrong word) — the corrected sentence + why in max 8 words" + (EN() ? " (in English)" : " (Portuguese ok)") + ". Omit this line when it's correct.\n" +
-   "CONTINUITY: you are in the middle of a conversation. Read CONVERSATION SO FAR and continue it: remember what he said, refer back to it, and never restart the topic. If he asks you to repeat, rewrite or 'build the sentence again', rewrite HIS last sentence (or your correction of it) in full, correctly. Never answer an exercise he did not receive.\n" +
    "REPLY: a real conversation, written at the " + LEVEL_RULE[S.level] + ". React to what he said, answer his question (from the lesson or article content when he asks about it, quoting it exactly), add one interesting detail, and keep the conversation going naturally — invite him to share his opinion or experience, but do NOT end every reply with a question; often a comment or a 'tell me about…' is better.\n" +
    "SCORE: correct | mistake | none — correct if he wrote at least one complete English sentence with no real mistakes (or got the challenge/drill right); mistake ONLY if you wrote a FIX line; none if he wrote in Portuguese, wrote only a few words, or for examples/explain modes.\n" +
-   "JUDGING (be fair): accept ANY answer that is grammatically correct, natural and does what was asked, even if it differs from the answer you had in mind — synonyms, other word orders and other valid tenses count as correct. NEVER treat as mistakes: capitalization, punctuation, missing apostrophes from voice input, contractions (don't / do not), British vs American spelling, or a small typo that doesn't change the word. His messages often come from speech recognition. When the answer is correct but could sound more natural, keep SCORE correct, skip FIX, and mention the nicer version in REPLY. If he wrote in Portuguese, don't penalize: show the English version in REPLY.\n" +
+   "(How to judge SCORE — a rule, not a line to write) Be fair: accept ANY answer that is grammatically correct, natural and does what was asked, even if it differs from the answer you had in mind — synonyms, other word orders and other valid tenses count as correct. NEVER treat as mistakes: capitalization, punctuation, missing apostrophes from voice input, contractions (don't / do not), British vs American spelling, or a small typo that doesn't change the word. His messages often come from speech recognition. When the answer is correct but could sound more natural, keep SCORE correct, skip FIX, and mention the nicer version in REPLY. If he wrote in Portuguese, don't penalize: show the English version in REPLY.\n" +
    "CHALLENGE: one short optional exercise in English that he answers in English, about what you're talking about — turn a sentence into a question or a negative, change the subject or the tense, complete a sentence, or use a word in a sentence. It is HIDDEN behind a button, so never mention it in REPLY. NEVER ask him to translate anything and never put Portuguese text in it. Omit it for the examples/explain modes.\n" +
-   "STYLE: " + length + " " + (EN() ? "LANGUAGE: write EVERYTHING in English — no Portuguese words at all, in any line. Mark the 1 or 2 most useful words or expressions as [[expression|short learner's-dictionary definition in English, like the Cambridge Learner's Dictionary, max 12 words]] — the [[...]] REPLACES the word in the sentence; never write the word and then the [[...]] again." : "Mark the 1 or 2 most useful words or expressions as [[expression|meaning in Portuguese, max 8 words]] — the [[...]] REPLACES the word in the sentence; never write the word and then the [[...]] again.") + " Sometimes — not every time — use a famous quote or a reference to a globally known movie or series when it truly fits. You may start REPLY with ONE icon tag that matches the content, chosen from {plane} {food} {film} {book} {star} {bulb} {chat} {heart} {house} {clock} {check} — only when it fits, never forced.\n\n" +
+   "STYLE: " + length + " " + (EN() ? "LANGUAGE: write EVERYTHING in English — no Portuguese words at all, in any line. Mark the 1 or 2 most useful words or expressions as [[expression|short learner's-dictionary definition in English, like the Cambridge Learner's Dictionary, max 12 words]] — the [[...]] REPLACES the word in the sentence, in the exact form the sentence needs (fed, feeds, feeding…), and ALWAYS has the | and the definition — never [[word]] alone; never write the word and then the [[...]] again." : "Mark the 1 or 2 most useful words or expressions as [[expression|meaning in Portuguese, max 8 words]] — the [[...]] REPLACES the word in the sentence, in the exact form the sentence needs (fed, feeds, feeding…), and ALWAYS has the | and the definition — never [[word]] alone; never write the word and then the [[...]] again.") + " Sometimes — not every time — use a famous quote or a reference to a globally known movie or series when it truly fits. You may start REPLY with ONE icon tag that matches the content, chosen from {plane} {food} {film} {book} {star} {bulb} {chat} {heart} {house} {clock} {check} — only when it fits, never forced.\n\n" +
    "CONVERSATION SO FAR (oldest first — keep continuity with it):\n" + S.hist.slice(-14).map(h => (h.r === "u" ? "Student: " : "Tutor: ") + histText(h)).join("\n") + "\n\nStudent's new message: " + text;
   const box = botSay("…"); S.busy = true;
   try {
@@ -2388,6 +2396,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-27i", d:"26/11", pt:["Correção: palavras apareciam com [[ ]] e às vezes surgia uma linha CONTINUITY na resposta"], en:["Fix: words sometimes showed up with [[ ]] and a CONTINUITY line appeared in replies"]},
   {id:"2026-11-27h", d:"26/11", pt:["Enter agora pula linha na mensagem. Para enviar, toque no aviãozinho (no computador, Ctrl+Enter também envia)"], en:["Enter now adds a new line. To send, tap the paper plane (on a computer, Ctrl+Enter also sends)"]},
   {id:"2026-11-27g", d:"26/11", pt:["Velocidade do áudio: toque no 1× ao lado do play para ouvir mais devagar (0,85×, 0,7×, 0,5×)","As correções (FIX) agora também são lidas em voz alta"], en:["Audio speed: tap 1× next to play to listen slower (0.85×, 0.7×, 0.5×)","Corrections (FIX) are now read aloud too"]},
   {id:"2026-11-27f", d:"26/11", pt:["Nova fonte de leitura (Space Mono): textos do chat, caderno e matérias mais confortáveis de ler"], en:["New reading font (Space Mono): chat, notebook and article text is easier to read"]},
