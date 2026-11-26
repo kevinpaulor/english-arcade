@@ -78,6 +78,12 @@ main[hidden],.chat[hidden]{display:none}
 .phr{padding:5px 0;border-top:1px dashed var(--line)}
 .kw{background:none;border:none;padding:0;font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
 .gloss{display:block;font-size:18px;margin:4px 0 2px;padding:4px 8px;background:var(--panel2);border-left:3px solid}
+.w{cursor:pointer;border-radius:2px}
+.w.on{background:rgba(255,255,255,.16);text-decoration:underline;text-underline-offset:3px}
+.gex{display:block;margin-top:4px;opacity:.85;font-style:italic}
+.gloss .cam{display:inline-block;margin-top:6px;font-size:7px;color:#fff;border:2px solid rgba(255,255,255,.4);padding:5px 7px;text-decoration:none}
+.voc.en{display:flex;flex-wrap:wrap;gap:6px 14px}
+.hint{display:block;margin-top:8px;opacity:.6;font-size:14px}
 .voc{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:3px 12px}
 .voc b{font-weight:700}
 .voc em{font-style:normal;opacity:.75}
@@ -284,7 +290,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 25/11 22:13</div>
+    <div class="ver" id="ver">v1 · build 25/11 22:41</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -299,6 +305,7 @@ P.forEach((p, i) => p.i = i);
 const byDate = {};
 P.forEach(p => (byDate[p.d] = byDate[p.d] || []).push(p));
 const DATES = Object.keys(byDate).sort();
+const MONTHS_EN = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
 const MONTHS = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
 const LVNAME = {simple:"FÁCIL", medium:"MÉDIO", native:"NATIVO"};
 const PCOLORS = ["#ff3ea5","#29e6ff","#ffd84a","#3ddc6b","#ff8a3c","#b46bff","#ff6b6b","#5b8cff"];
@@ -373,7 +380,7 @@ $("mic").innerHTML = pix("mic",3); $("sendBtn").innerHTML = pix("send",3);
 const topicPages = k => P.filter(p => p.k === k);
 const ctxPages = () => { const r = S.ctx === "nb" && T[S.topic] ? [topicPages(S.topic)[S.tp]].filter(Boolean) : (byDate[S.date] || []); return r.length ? r : (byDate[S.date] || byDate[DATES[DATES.length-1]]); };
 const ctxColor = () => T[ctxPages()[0].k].c;
-const ctxLabel = () => S.ctx === "nb" && T[S.topic] ? T[S.topic].n : "Aula de " + fmt(S.date);
+const ctxLabel = () => S.ctx === "nb" && T[S.topic] ? topicName(S.topic) : (S.level !== "simple" ? "Lesson of " : "Aula de ") + fmt(S.date);
 /* ---------- páginas originais (fotos) e MEUS CADERNOS ---------- */
 const SCANS = window.SCANS || {};
 const SCAN_DIR = "../../scans/";
@@ -439,8 +446,8 @@ function openViewer(items, start){
   show();
 }
 function scanItems(p){
-  if (p.mine) return [{label: "SUA FOTO", load: () => EA.pageImage(p.id)}];
-  return (SCANS[p.d] || []).map((f, j, all) => ({label: "CADERNO " + short(p.d), src: SCAN_DIR + f}));
+  if (p.mine) return [{label: tr("SUA FOTO","YOUR PHOTO"), load: () => EA.pageImage(p.id)}];
+  return (SCANS[p.d] || []).map((f, j, all) => ({label: tr("CADERNO ","NOTEBOOK ") + short(p.d), src: SCAN_DIR + f}));
 }
 
 /* fotografar uma página */
@@ -467,7 +474,7 @@ async function readPhotos(files, nbId){
   S.view = "chat"; render();
   let nb = nbId ? T["u_" + nbId] : null, lastPage = null;
   for (let n = 0; n < files.length; n++){
-    const box = botSay("Lendo a foto" + (files.length > 1 ? " " + (n + 1) + " de " + files.length : "") + "… isso leva alguns segundos.", {icon:"book"});
+    const box = botSay(tr("Lendo a foto","Reading the photo") + (files.length > 1 ? " " + (n + 1) + tr(" de "," of ") + files.length : "") + tr("… isso leva alguns segundos.","… this takes a few seconds."), {icon:"book"});
     let big, thumb, res;
     try { big = await compressImage(files[n], 1600, 0.82); thumb = await compressImage(files[n], 1100, 0.6); if (thumb.length > 850000) thumb = await compressImage(files[n], 800, 0.5); }
     catch(e) { box.textContent = "Não consegui abrir essa imagem. Tente outra foto."; continue; }
@@ -486,8 +493,8 @@ async function readPhotos(files, nbId){
     try { await EA.savePage(Object.assign({}, pg, {t: p.t, s: p.s, f: p.f, v: p.v, g: p.g, fixes: p.fixes, d: p.d}), thumb); } catch(e) { console.warn("savePage", e); saved = false; }
     lastPage = p;
     box.textContent = "";
-    box.append(pixEl("book",2), document.createTextNode(" Nova página em “" + nb.n + "”: " + p.t + "\n" + (p.s || "")));
-    if (p.fixes.length) box.append(document.createTextNode("\nCorrigi: " + p.fixes.join(" · ")));
+    box.append(pixEl("book",2), document.createTextNode(tr(" Nova página em “"," New page in “") + nb.n + "”: " + p.t + (EN() ? "" : "\n" + (p.s || ""))));
+    if (p.fixes.length) box.append(document.createTextNode(tr("\nCorrigi: ","\nFixed: ") + p.fixes.join(" · ")));
     if (!saved) box.append(document.createTextNode("\n(Não consegui salvar na sua conta: falta publicar as regras novas do Firebase. Por enquanto ela fica só até fechar o app.)"));
     box._raw = box.textContent;
   }
@@ -495,7 +502,7 @@ async function readPhotos(files, nbId){
     const k = lastPage.k, ps = topicPages(k);
     S.ctx = "nb"; S.topic = k; S.tp = Math.max(0, ps.indexOf(lastPage));
     render();
-    const more = el("div","more"), go = el("button","act main px","ABRIR O CADERNO"), ph = el("button","act px","VER A FOTO");
+    const more = el("div","more"), go = el("button","act main px",tr("ABRIR O CADERNO","OPEN NOTEBOOK")), ph = el("button","act px",tr("VER A FOTO","SEE PHOTO"));
     go.onclick = () => openTopic(k, lastPage.i); ph.onclick = () => openViewer(scanItems(lastPage), 0);
     more.append(go, ph); $("msgs").append(more);
     botSay("Ask me anything about this page — or try: make a question, a negative, or use another subject.", {icon:"chat"});
@@ -571,18 +578,19 @@ function phraseNode(text, list, color, budget){
       if (m){
         budget.n--;
         span.append(document.createTextNode(text.slice(0,m.index)));
-        span.append(kwButton(m[0], a + " — " + b, color));
+        span.append(kwButton(m[0], EN() ? null : a + " — " + b, color));
         span.append(document.createTextNode(text.slice(m.index + m[0].length)));
-        return span;
+        wordify(span); return span;
       }
     }
   }
-  span.textContent = text; return span;
+  span.textContent = text; wordify(span); return span;
 }
 function kwButton(word, info, color){
   const b = el("button","kw",word); b.style.color = color; b.style.textDecorationColor = color;
   b.setAttribute("aria-expanded","false");
   b.onclick = () => {
+    if (info == null){ lookupWord(b, word, color); return; }
     let g = b._gloss;
     if (g){ g.remove(); b._gloss = null; b.setAttribute("aria-expanded","false"); return; }
     g = el("span","gloss",info); g.style.borderColor = color; b._gloss = g; b.setAttribute("aria-expanded","true");
@@ -595,35 +603,38 @@ function kwButton(word, info, color){
 function renderPage(p, showDate){
   const t = T[p.k], box = el("article","page");
   box.style.boxShadow = "4px 4px 0 " + t.c;
-  const chip = el("button","chip px", (showDate ? short(p.d) + " · " : "") + t.n.toUpperCase());
+  const chip = el("button","chip px", (showDate ? short(p.d) + " · " : "") + topicName(p.k).toUpperCase());
   chip.style.borderColor = t.c; chip.onclick = () => openTopic(p.k, p.i);
   const head = el("div","phead"); head.append(chip);
   const shots = scanItems(p);
   if (shots.length){
-    const cam = el("button","camb px"); cam.append(pixEl("cam",2), document.createTextNode(p.mine ? " FOTO" : " PÁGINA" + (shots.length > 1 ? "S (" + shots.length + ")" : "")));
+    const cam = el("button","camb px"); cam.append(pixEl("cam",2), document.createTextNode(p.mine ? tr(" FOTO"," PHOTO") : tr(" PÁGINA"," PAGE") + (shots.length > 1 ? "S (" + shots.length + ")" : "")));
     cam.setAttribute("aria-label", p.mine ? "Ver a foto da página" : "Ver a página do caderno");
     cam.onclick = () => openViewer(shots, 0); head.append(cam);
   }
-  box.append(head, el("h2","ptitle px",p.t), el("p","psum",p.s));
-  if (p.fixes && p.fixes.length){ const fx = el("div","tip"); fx.append(el("span","px","CORRIGIDO"), el("span",null,p.fixes.join(" · "))); box.append(fx); }
-  box.append(el("div","sec px","FRASES"));
+  box.append(head, el("h2","ptitle px",p.t)); if (!EN() || p.mine && !/[ãõçáéíóúâêô]/i.test(p.s || "")) box.append(el("p","psum",p.s));
+  if (p.fixes && p.fixes.length){ const fx = el("div","tip"); fx.append(el("span","px",tr("CORRIGIDO","FIXED")), el("span",null,p.fixes.join(" · "))); box.append(fx); }
+  box.append(el("div","sec px",tr("FRASES","PHRASES")));
   const list = terms(p), budget = {n:4};
   p.f.forEach(f => { const r = el("div","phr"); r.append(phraseNode(f, list, t.c, budget)); box.append(r); });
   if (p.v && p.v.length){
-    box.append(el("div","sec px","VOCABULÁRIO"));
-    const g = el("div","voc"); p.v.forEach(([a,b]) => g.append(el("b",null,a), el("em",null,b))); box.append(g);
+    box.append(el("div","sec px",tr("VOCABULÁRIO","VOCABULARY")));
+    const g = el("div","voc"); if (EN()) g.classList.add("en");
+    p.v.forEach(([a,b]) => { if (EN()){ const k = kwButton(a, null, t.c); g.append(k); } else g.append(el("b",null,a), el("em",null,b)); });
+    box.append(g);
+    if (EN()) box.append(el("small","hint","Tap any word to see its definition and an example."));
   }
-  if (p.g){ const tip = el("div","tip"); tip.append(el("span","px","DICA"), el("span",null,p.g)); box.append(tip); }
+  if (p.g && !EN()){ const tip = el("div","tip"); tip.append(el("span","px","DICA"), el("span",null,p.g)); box.append(tip); }
   const acts = el("div","acts");
-  const talk = el("button","act main px","CONVERSAR ►");
+  const talk = el("button","act main px",tr("CONVERSAR ►","TALK ►"));
   talk.onclick = () => { S.view = "chat"; render(); botSay("Let's talk about \"" + p.t + "\". Ask me anything!", {icon:"chat"}); $("msg").focus(); };
   acts.append(talk);
-  [["PERGUNTA","q"],["NEGATIVA","n"],["OUTRO SUJEITO","s"]].forEach(([l,k]) => { const b = el("button","act px",l); b.onclick = () => drill(p, k); acts.append(b); });
+  [[tr("PERGUNTA","QUESTION"),"q"],[tr("NEGATIVA","NEGATIVE"),"n"],[tr("OUTRO SUJEITO","OTHER SUBJECT"),"s"]].forEach(([l,k]) => { const b = el("button","act px",l); b.onclick = () => drill(p, k); acts.append(b); });
   box.append(acts);
   if (p.mine){
-    const own = el("div","acts"), add = el("button","act px","+ PÁGINA (FOTO)"), del = el("button","act px","APAGAR PÁGINA");
+    const own = el("div","acts"), add = el("button","act px",tr("+ PÁGINA (FOTO)","+ PAGE (PHOTO)")), del = el("button","act px",tr("APAGAR PÁGINA","DELETE PAGE"));
     add.onclick = () => pickPhotos(p.nb);
-    del.onclick = () => { if (del.dataset.ok){ deleteMinePage(p); return; } del.dataset.ok = "1"; del.textContent = "TOQUE DE NOVO PARA APAGAR"; setTimeout(() => { delete del.dataset.ok; del.textContent = "APAGAR PÁGINA"; }, 3000); };
+    del.onclick = () => { if (del.dataset.ok){ deleteMinePage(p); return; } del.dataset.ok = "1"; del.textContent = tr("TOQUE DE NOVO PARA APAGAR","TAP AGAIN TO DELETE"); setTimeout(() => { delete del.dataset.ok; del.textContent = tr("APAGAR PÁGINA","DELETE PAGE"); }, 3000); };
     own.append(add, del); box.append(own);
   }
   return box;
@@ -637,9 +648,9 @@ function renderCal(m){
   prev.setAttribute("aria-label","Mês anterior"); next.setAttribute("aria-label","Próximo mês");
   const shift = n => { const d = new Date(y, mo-1+n, 1); S.ym = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); render(); };
   prev.onclick = () => shift(-1); next.onclick = () => shift(1);
-  head.append(prev, el("span","px",MONTHS[mo-1]+" "+y), next); card.append(head);
+  head.append(prev, el("span","px",(EN() ? MONTHS_EN : MONTHS)[mo-1]+" "+y), next); card.append(head);
   const g = el("div","grid");
-  ["D","S","T","Q","Q","S","S"].forEach(d => g.append(el("div","dow px",d)));
+  (EN() ? ["S","M","T","W","T","F","S"] : ["D","S","T","Q","Q","S","S"]).forEach(d => g.append(el("div","dow px",d)));
   const first = new Date(y, mo-1, 1).getDay(), days = new Date(y, mo, 0).getDate();
   for (let i=0;i<first;i++) g.append(el("div","day empty"));
   for (let d=1; d<=days; d++){
@@ -657,8 +668,8 @@ function renderCal(m){
   }
   card.append(g);
   const go = el("form","go");
-  const inp = el("input"); inp.id = "dateIn"; inp.placeholder = "dd/mm/aaaa"; inp.inputMode = "numeric"; inp.setAttribute("aria-label","Digite uma data");
-  go.append(inp, el("button","gobtn px","IR"));
+  const inp = el("input"); inp.id = "dateIn"; inp.placeholder = tr("dd/mm/aaaa","dd/mm/yyyy"); inp.inputMode = "numeric"; inp.setAttribute("aria-label","Digite uma data");
+  go.append(inp, el("button","gobtn px",tr("IR","GO")));
   go.onsubmit = e => { e.preventDefault(); goDate(inp.value, false); };
   card.append(go, Object.assign(el("p","note"), {id:"goMsg"}));
   m.append(card);
@@ -668,33 +679,33 @@ function renderDay(m){
   if (S.cal) renderCal(m);
   const ps = byDate[S.date] || []; markSeen(S.date);
   const h = el("div","dayhead");
-  h.append(el("span","px","AULA " + fmt(S.date)), el("small",null, ps.length + (ps.length===1?" página":" páginas")));
+  h.append(el("span","px",tr("AULA ","LESSON ") + fmt(S.date)), el("small",null, ps.length + (ps.length===1?tr(" página"," page"):tr(" páginas"," pages"))));
   m.append(h);
   ps.forEach(p => m.append(renderPage(p,false)));
 }
 
 function renderToc(m){
-  m.append(el("h2","ptitle px","MEUS CADERNOS"));
-  m.append(el("p","lead","Fotografe uma página do seu caderno ou livro: eu leio, corrijo o inglês e crio um caderno para conversar sobre ela."));
-  const shot = el("button","act main px camgo"); shot.append(pixEl("cam",2), document.createTextNode(" FOTOGRAFAR PÁGINA"));
+  m.append(el("h2","ptitle px",tr("MEUS CADERNOS","MY NOTEBOOKS")));
+  m.append(el("p","lead",tr("Fotografe uma página do seu caderno ou livro: eu leio, corrijo o inglês e crio um caderno para conversar sobre ela.","Take a photo of a page from your notebook or book: I read it, fix the English and create a notebook we can talk about.")));
+  const shot = el("button","act main px camgo"); shot.append(pixEl("cam",2), document.createTextNode(tr(" FOTOGRAFAR PÁGINA"," PHOTOGRAPH A PAGE")));
   shot.onclick = () => pickPhotos(null); m.append(shot);
   const mine = el("div","toc"); mine.style.margin = "12px 0 22px";
   mineKeys().sort((a, b) => (T[a].created || 0) - (T[b].created || 0)).forEach(k => {
     const ps = topicPages(k); if (!ps.length) return;
     const b = el("button","trow"), i = el("i"); i.style.boxShadow = "3px 3px 0 " + T[k].c;
     const tx = el("span"); tx.append(el("b",null,T[k].n), el("small",null, short(ps[0].d) + (ps.length > 1 ? " → " + short(ps[ps.length-1].d) : "")));
-    b.append(i, tx, el("span","px", ps.length + " PÁG"));
+    b.append(i, tx, el("span","px", ps.length + tr(" PÁG"," PG")));
     b.onclick = () => openTopic(k, ps[0].i); mine.append(b);
   });
   m.append(mine);
-  m.append(el("h2","ptitle px","CADERNO DAS AULAS"));
-  m.append(el("p","lead","Cada assunto é um caderno. Toque para folhear."));
+  m.append(el("h2","ptitle px",tr("CADERNO DAS AULAS","LESSON NOTEBOOK")));
+  m.append(el("p","lead",tr("Cada assunto é um caderno. Toque para folhear.","Each subject is a notebook. Tap to flip through it.")));
   const box = el("div","toc");
   Object.keys(T).filter(k => !T[k].mine).forEach(k => {
     const ps = topicPages(k); if (!ps.length) return;
     const b = el("button","trow"), i = el("i"); i.style.boxShadow = "3px 3px 0 " + T[k].c;
-    const tx = el("span"); tx.append(el("b",null,T[k].n), el("small",null, short(ps[0].d) + " → " + short(ps[ps.length-1].d)));
-    b.append(i, tx, el("span","px", ps.length + " PÁG"));
+    const tx = el("span"); tx.append(el("b",null,topicName(k)), el("small",null, short(ps[0].d) + " → " + short(ps[ps.length-1].d)));
+    b.append(i, tx, el("span","px", ps.length + tr(" PÁG"," PG")));
     b.onclick = () => openTopic(k, ps[0].i);
     box.append(b);
   });
@@ -703,14 +714,14 @@ function renderToc(m){
 
 function renderNotebook(m){
   const ps = topicPages(S.topic);
-  const back = el("button","fbtn px","◀ SUMÁRIO"); back.onclick = () => { S.view = "toc"; render(); };
+  const back = el("button","fbtn px",tr("◀ SUMÁRIO","◀ CONTENTS")); back.onclick = () => { S.view = "toc"; render(); };
   m.append(back, el("div"));
   const fl = el("div","flip"); fl.style.marginTop = "14px";
   const a = el("button","fbtn px","◀"), b = el("button","fbtn px","▶");
   a.setAttribute("aria-label","Página anterior"); b.setAttribute("aria-label","Próxima página");
   a.disabled = S.tp === 0; b.disabled = S.tp === ps.length-1;
   a.onclick = () => { S.tp--; render(); }; b.onclick = () => { S.tp++; render(); };
-  fl.append(a, el("span","px","PÁG " + (S.tp+1) + " / " + ps.length), b);
+  fl.append(a, el("span","px",tr("PÁG ","PAGE ") + (S.tp+1) + " / " + ps.length), b);
   markSeen(ps[S.tp].d);
   m.append(fl, renderPage(ps[S.tp], true));
 }
@@ -912,6 +923,7 @@ function renderExport(m){
 
 let lastView = null;
 function render(){
+  applyLang();
   if (S.view !== lastView){ if (lastView !== null) stopSpeech(); lastView = S.view; }
   const m = $("main"); m.textContent = "";
   ["chat","day","toc","diary","me"].forEach(v => $("t-"+v).setAttribute("aria-selected", String(S.view===v || (v==="toc" && S.view==="nb") || (v==="me" && S.view==="export") || (v==="diary" && S.view==="conv"))));
@@ -945,34 +957,101 @@ function parseDate(txt){
 function goDate(txt, inChat){
   const d = parseDate(txt);
   const note = t => { if (inChat) botSay(t, {icon:"cal", save:"b"}); else { const g = $("goMsg"); if (g) g.textContent = t; } };
-  if (!d){ note("Não entendi a data. Use dd/mm ou dd/mm/aaaa."); return; }
+  if (!d){ note(tr("Não entendi a data. Use dd/mm ou dd/mm/aaaa.", "I didn't get that date. Use dd/mm or dd/mm/yyyy.")); return; }
   let target = d, msg;
   if (!byDate[d]){ target = DATES.reduce((a,b) => Math.abs(new Date(b)-new Date(d)) < Math.abs(new Date(a)-new Date(d)) ? b : a); msg = "Não há anotação em " + fmt(d) + ". Abri a aula mais próxima: " + fmt(target) + "."; }
   S.date = target; S.ym = target.slice(0,7); S.ctx = "day";
   if (!inChat) S.view = "day";
   render(); markSeen(target);
-  note(msg || ("Aula de " + fmt(target) + ": " + byDate[target].map(p=>p.t).join(" + ") + ". Ask me anything about it!"));
+  note(msg || (tr("Aula de ", "Lesson of ") + fmt(target) + ": " + byDate[target].map(p=>p.t).join(" + ") + ". Ask me anything about it!"));
 }
 
 /* ---------- tutorial ---------- */
 const TUT_PT = ["Escreva ou fale em inglês aqui no chat. Eu corrijo e respondo.","Escolha o nível da resposta no topo: FÁCIL, MÉDIO ou NATIVO.","Toque no nome da aula, no topo, ou em CADERNO, para trocar de aula pelo calendário. Você também pode digitar uma data aqui, como 14/04.","Palavras coloridas abrem o significado quando você toca nelas.","Embaixo das respostas: + EXEMPLOS e EXPLICAR MAIS.","Acertou a frase? Ganha pontos: FÁCIL +1, MÉDIO +3, NATIVO +5. Errou? Perde um pouco.","Em PESSOAL ficam todas as suas conversas, para reler ou continuar depois.","Em EU você cadastra pessoas e lugares da sua vida e exporta seu progresso, inclusive por email."];
 const TUT_EN = ["Write or speak in English here. I'll correct you and reply.","Pick the answer level at the top: EASY, MEDIUM or NATIVE.","Tap the lesson name at the top, or NOTEBOOK, to change lessons with the calendar. You can also type a date here, like 14/04.","Colored words show their meaning when you tap them.","Under each answer: + EXAMPLES and EXPLAIN MORE.","Got it right? You score: EASY +1, MEDIUM +3, NATIVE +5. Got it wrong? You lose a little.","PERSONAL keeps all your conversations so you can reread or continue them.","In ME you add people and places from your life and export your progress, even by email."];
 function tutorialNode(){
-  const box = el("section","tut"); box.id = "tut";
+  const box = el("section","tut"); box.id = "tut"; box.dataset.lang = EN() ? "en" : "pt";
   const tplay = (lines, pt) => { const b = el("button","play"); b.style.marginLeft = "auto"; b.setAttribute("aria-label", pt ? "Ouvir o tutorial em português" : "Listen to the tutorial in English"); b.innerHTML = PLAY;
     b.onclick = () => speakText((pt ? "Como jogar. " : "How to play. ") + lines.map((t,i) => (i+1) + ". " + t).join(" "), b, !pt); return b; };
-  const h = el("h2","px"); h.append(pixEl("br",2), document.createTextNode("COMO JOGAR"), tplay(TUT_PT, true)); box.append(h);
-  const ol = el("ol"); TUT_PT.forEach(t => ol.append(el("li",null,t))); box.append(ol);
+  if (!EN()){
+    const h = el("h2","px"); h.append(pixEl("br",2), document.createTextNode("COMO JOGAR"), tplay(TUT_PT, true)); box.append(h);
+    const ol = el("ol"); TUT_PT.forEach(t => ol.append(el("li",null,t))); box.append(ol);
+  }
   const en = el("div","en"); const h2 = el("h2","px"); h2.append(pixEl("us",2), document.createTextNode("HOW TO PLAY"), tplay(TUT_EN, false)); en.append(h2);
   const ol2 = el("ol"); TUT_EN.forEach(t => ol2.append(el("li",null,t))); en.append(ol2); box.append(en);
   return box;
 }
 function syncTutorial(){
-  const cur = $("tut");
+  let cur = $("tut");
+  if (cur && cur.dataset.lang !== (EN() ? "en" : "pt")){ const n = tutorialNode(); cur.replaceWith(n); cur = n; }
   if (S.tut && !cur) $("msgs").prepend(tutorialNode());
   if (!S.tut && cur) cur.remove();
 }
 
+/* ---------- idioma por nível: FÁCIL mostra português; MÉDIO e NATIVO são 100% inglês ---------- */
+const EN = () => S.level !== "simple";
+const tr = (pt, en) => EN() ? en : pt;
+const TOPIC_EN = {past:"Past tenses", perfect:"Present & past perfect", future:"Future: will & going to", modals:"Modals & conditionals", grammar:"Grammar: comparatives & more", phrasal:"Phrasal verbs & expressions", vocab:"Vocabulary, series & reading", writing:"Linking words, opinion & TOEFL", travel:"Travel, airport & hotel", talk:"Conversation & role-play", food:"Restaurant & food", life:"Home, shopping & daily life"};
+const topicName = k => (EN() && TOPIC_EN[k]) ? TOPIC_EN[k] : (T[k] ? T[k].n : "");
+function applyLang(){
+  const tabs = {"t-chat":["CHAT","CHAT"], "t-day":["CADERNO","NOTEBOOK"], "t-toc":["SUMÁRIO","CONTENTS"], "t-diary":["PESSOAL","PERSONAL"], "t-me":["EU","ME"]};
+  Object.keys(tabs).forEach(id => { const b = $(id); if (b) b.textContent = tr(...tabs[id]); });
+  const lv = {simple:["FÁCIL","EASY"], medium:["MÉDIO","MEDIUM"], native:["NATIVO","NATIVE"]};
+  document.querySelectorAll(".lv").forEach(b => { b.textContent = tr(...lv[b.dataset.lv]); });
+  document.documentElement.lang = EN() ? "en" : "pt-BR";
+}
+/* toque em qualquer palavra: tradução (FÁCIL) ou definição + exemplo em inglês (MÉDIO/NATIVO) */
+let DICT = load("ea-dict", {});
+function localMeaning(w){
+  const lw = w.toLowerCase();
+  for (const p of P) for (const v of (p.v || [])) if (String(v[0]).toLowerCase() === lw) return v[1];
+  return null;
+}
+function wordify(node){
+  const walk = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {acceptNode: n => n.parentNode.closest("button,.kw,.w,.lab,.vtag,.gloss,a") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+  const list = []; while (walk.nextNode()) list.push(walk.currentNode);
+  list.forEach(tn => {
+    const s = tn.nodeValue; if (!/[A-Za-z]{2}/.test(s)) return;
+    const frag = document.createDocumentFragment(); let last = 0, m; const re = /[A-Za-z][A-Za-z'’-]*[A-Za-z]|[A-Za-z]/g;
+    while ((m = re.exec(s))){ frag.append(document.createTextNode(s.slice(last, m.index))); const w = el("span","w",m[0]); frag.append(w); last = re.lastIndex; }
+    frag.append(document.createTextNode(s.slice(last))); tn.replaceWith(frag);
+  });
+}
+function glossBox(anchor, color){
+  const g = el("span","gloss"); g.style.borderColor = color || "#fff";
+  const line = anchor.closest(".line"); if (line) line.after(g); else (anchor.closest(".phr,.voc") || anchor.parentNode).append(g);
+  return g;
+}
+function fillGloss(g, word, info){
+  g.textContent = "";
+  if (info.pt){ g.append(el("b",null,word), document.createTextNode(" — " + info.pt)); return; }
+  g.append(el("b",null,word + (info.pos ? " (" + info.pos + ")" : "")), document.createTextNode(" — " + (info.def || "")));
+  if (info.example) g.append(el("span","gex","e.g. " + info.example));
+  const a = el("a","cam px","CAMBRIDGE ↗"); a.href = "https://dictionary.cambridge.org/dictionary/english/" + encodeURIComponent(word.toLowerCase()); a.target = "_blank"; a.rel = "noopener";
+  g.append(a);
+}
+async function lookupWord(anchor, word, color){
+  if (anchor._gloss){ anchor._gloss.remove(); anchor._gloss = null; anchor.classList.remove("on"); return; }
+  document.querySelectorAll(".w.on").forEach(x => { if (x._gloss) x._gloss.remove(); x._gloss = null; x.classList.remove("on"); });
+  const g = glossBox(anchor, color); anchor._gloss = g; anchor.classList.add("on");
+  const mode = EN() ? "en" : "pt", key = mode + ":" + word.toLowerCase();
+  if (DICT[key]){ fillGloss(g, word, DICT[key]); return; }
+  if (mode === "pt"){ const lm = localMeaning(word); if (lm){ fillGloss(g, word, {pt: lm}); return; } }
+  if (!(window.EA && EA.user() && EA.define)){ g.textContent = tr("Entre na conta para ver o significado.", "Sign in to see the definition."); return; }
+  g.textContent = "…";
+  const sentence = (anchor.closest(".line,.phr") || anchor.parentNode).textContent.slice(0, 240);
+  try {
+    const r = await EA.define(word, sentence, mode);
+    const info = mode === "pt" ? {pt: String(r.pt || "").slice(0, 80)} : {def: String(r.def || "").slice(0, 200), example: String(r.example || "").slice(0, 200), pos: String(r.pos || "").slice(0, 20)};
+    if (!info.pt && !info.def) throw 0;
+    DICT[key] = info; const ks = Object.keys(DICT); if (ks.length > 500) delete DICT[ks[0]]; store("ea-dict", DICT);
+    if (anchor._gloss === g) fillGloss(g, word, info);
+  } catch(e) { if (anchor._gloss === g) g.textContent = e && e.code === "limit" ? tr("Limite da IA de hoje atingido.", "Daily AI limit reached.") : tr("Não consegui buscar agora.", "Couldn't look it up right now."); }
+}
+document.addEventListener("click", e => {
+  const w = e.target.closest && e.target.closest(".w"); if (!w) return;
+  lookupWord(w, w.textContent, ctxColor());
+});
 /* ---------- segurar a mensagem = copiar ---------- */
 async function copyText(txt){
   try { await navigator.clipboard.writeText(txt); return true; } catch(e) {}
@@ -988,11 +1067,11 @@ function longPressCopy(b, t){
     sx = e.clientX; sy = e.clientY; cancel();
     timer = setTimeout(async () => {
       timer = null;
-      const txt = (t.innerText || "").replace(/^ÁUDIO TRANSCRITO\s*/,"").replace(/\n?Detalhe:.*$/s,"").trim();
+      const txt = (t.innerText || "").replace(/^(ÁUDIO TRANSCRITO|VOICE MESSAGE)\s*/,"").replace(/\n?Detalhe:.*$/s,"").trim();
       const ok = await copyText(txt);
       b.classList.add("copied"); setTimeout(() => b.classList.remove("copied"), 600);
       try { navigator.vibrate && navigator.vibrate(30); } catch(e) {}
-      copyTag(ok ? "COPIADO ✓" : "NÃO DEU PARA COPIAR");
+      copyTag(ok ? tr("COPIADO ✓","COPIED ✓") : tr("NÃO DEU PARA COPIAR","COULDN'T COPY"));
     }, 550);
   });
   b.addEventListener("pointermove", e => { if (timer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) cancel(); });
@@ -1002,7 +1081,7 @@ function longPressCopy(b, t){
 const PLAY = pix("play",2), PAUSE = pix("pause",2);
 function bubble(cls, voice, host){
   const wrap = el("div","m " + cls), b = el("div","bub"), t = el("div","txt");
-  if (voice) t.append(el("span","vtag","ÁUDIO TRANSCRITO"));
+  if (voice) t.append(el("span","vtag",tr("ÁUDIO TRANSCRITO","VOICE MESSAGE")));
   const pb = el("button","play"); pb.setAttribute("aria-label","Ouvir"); pb.innerHTML = PLAY;
   pb.onclick = () => speakText(speakable(t._raw || t.textContent), pb, cls === "me");
   b.append(t, pb); wrap.append(b); t._play = pb; t._wrap = wrap;
@@ -1012,7 +1091,7 @@ function bubble(cls, voice, host){
 function userSay(text, voice){ if (window.EA && EA.user()) EA.countMessage(); const t = bubble("me", voice); const ln = el("span","line"); namesText(ln, text); t.append(ln); t._raw = text; logMsg("u", text); rec("u", text, voice ? {v:1} : null); return t; }
 function botSay(text, o){ o = o || {}; const t = bubble("bot", false, o.host); if (o.icon) t.append(pixEl(o.icon,2)); t.append(document.createTextNode(text)); t._raw = text; if (o.save) rec(o.save, (o.icon ? "{" + o.icon + "} " : "") + text); return t; }
 
-const LAB = {FIX:"CORREÇÃO", REPLY:"", "YOUR TURN":"SUA VEZ"};
+const LABS = {pt:{FIX:"CORREÇÃO", REPLY:"", "YOUR TURN":"SUA VEZ"}, en:{FIX:"FIX", REPLY:"", "YOUR TURN":"YOUR TURN"}};
 function richLine(parent, text, color){
   const line = el("span","line");
   let rest = text;
@@ -1034,13 +1113,14 @@ function paint(box, text){
   text.split(/\n+/).forEach(l => {
     if (/^\s*SCORE\s*:/i.test(l)) return;
     const m = l.match(/^\s*(FIX|REPLY|YOUR TURN)\s*:\s*(.*)$/i);
-    if (m){ const k = m[1].toUpperCase(); if (LAB[k]) box.append(el("span","lab",LAB[k])); if (m[2].trim()) richLine(box, m[2], color); }
+    if (m){ const k = m[1].toUpperCase(); const LAB = EN() ? LABS.en : LABS.pt; if (LAB[k]) box.append(el("span","lab",LAB[k])); if (m[2].trim()) richLine(box, m[2], color); }
     else if (l.trim()) richLine(box, l, color);
   });
+  wordify(box);
 }
 function moreButtons(box, topicText){
   const row = el("div","more");
-  const ex = el("button","px","+ EXEMPLOS"), mo = el("button","px","EXPLICAR MAIS");
+  const ex = el("button","px",tr("+ EXEMPLOS","+ EXAMPLES")), mo = el("button","px",tr("EXPLICAR MAIS","EXPLAIN MORE"));
   ex.onclick = () => { row.remove(); followUp("More examples, please.", "examples", topicText); };
   mo.onclick = () => { row.remove(); followUp("Can you explain it in more detail?", "explain", topicText); };
   row.append(ex, mo); box._wrap.append(row);
@@ -1063,11 +1143,12 @@ async function askClaude(text, voice, mode, about){
    (S.drill ? "He is answering this drill: " + S.drill.task + " \"" + S.drill.phrase + "\". Say if the transformation is right.\n" : "") +
    (about ? "Previous answer he wants to expand: " + about + "\n" : "") +
    "FORMAT (plain text, no markdown, each part on its own line):\n" +
-   "FIX: only if his message has an English mistake — the corrected sentence + why in max 8 words (Portuguese ok). Omit this line when it's correct.\n" +
+   "FIX: only if his message has a REAL English mistake (grammar or a wrong word) — the corrected sentence + why in max 8 words" + (EN() ? " (in English)" : " (Portuguese ok)") + ". Omit this line when it's correct.\n" +
    "REPLY: the answer, written at the " + LEVEL_RULE[S.level] + ". Answer from the lesson content when he asks about it and quote it exactly.\n" +
-   "SCORE: correct | mistake | none — correct if his English message or drill answer has no mistakes; mistake if you wrote a FIX line; none if he wrote in Portuguese, only asked something without writing a real English sentence, or for examples/explain modes.\n" +
-   "YOUR TURN: one short challenge (ask a question, write a negative, or use another subject from his world). Omit it for the examples/explain modes.\n" +
-   "STYLE: " + length + " Mark the 1 or 2 most useful words or expressions as [[expression|meaning in Portuguese, max 8 words]]. Sometimes — not every time — use a famous quote or a reference to a globally known movie or series when it truly fits. You may start REPLY with ONE icon tag that matches the content, chosen from {plane} {food} {film} {book} {star} {bulb} {chat} {heart} {house} {clock} {check} — only when it fits, never forced.\n\n" +
+   "SCORE: correct | mistake | none — correct if his English message or drill answer is acceptable; mistake ONLY if you wrote a FIX line; none if he wrote in Portuguese, only asked something without writing a real English sentence, or for examples/explain modes.\n" +
+   "JUDGING (be fair): accept ANY answer that is grammatically correct, natural and does what was asked, even if it differs from the answer you had in mind — synonyms, other word orders and other valid tenses count as correct. NEVER treat as mistakes: capitalization, punctuation, missing apostrophes from voice input, contractions (don't / do not), British vs American spelling, or a small typo that doesn't change the word. His messages often come from speech recognition. When the answer is correct but could sound more natural, keep SCORE correct, skip FIX, and mention the nicer version in REPLY. If he wrote in Portuguese, don't penalize: show the English version in REPLY.\n" +
+   "YOUR TURN: one short challenge in English that he answers in English — answer a question about his life or the lesson, turn a sentence into a question or a negative, change the subject or the tense, or complete a sentence. NEVER ask him to translate anything (in either direction) and never put Portuguese text in the challenge. Omit it for the examples/explain modes.\n" +
+   "STYLE: " + length + " " + (EN() ? "LANGUAGE: write EVERYTHING in English — no Portuguese words at all, in any line. Mark the 1 or 2 most useful words or expressions as [[expression|short learner's-dictionary definition in English, like the Cambridge Learner's Dictionary, max 12 words]]." : "Mark the 1 or 2 most useful words or expressions as [[expression|meaning in Portuguese, max 8 words]].") + " Sometimes — not every time — use a famous quote or a reference to a globally known movie or series when it truly fits. You may start REPLY with ONE icon tag that matches the content, chosen from {plane} {food} {film} {book} {star} {bulb} {chat} {heart} {house} {clock} {check} — only when it fits, never forced.\n\n" +
    "Recent chat:\n" + S.hist.slice(-8).map(h => (h.r === "u" ? "Student: " : "Tutor: ") + h.t).join("\n") + "\n\nStudent's new message: " + text;
   const box = botSay("…"); S.busy = true;
   try {
@@ -1085,9 +1166,9 @@ async function askClaude(text, voice, mode, about){
     if (voice) speakText(speakable(res.text), box._play);
   } catch (e) {
     if (e && e.code === "not_granted"){ sample = null; offline(text, box, voice); }
-    else if (e && e.code === "limit") box.textContent = "Você usou todas as mensagens do professor de hoje. Volte amanhã, ou treine com PERGUNTA, NEGATIVA e OUTRO SUJEITO no caderno.";
+    else if (e && e.code === "limit") box.textContent = tr("Você usou todas as mensagens do professor de hoje. Volte amanhã, ou treine com PERGUNTA, NEGATIVA e OUTRO SUJEITO no caderno.", "You've used all of today's tutor messages. Come back tomorrow, or practise with QUESTION, NEGATIVE and OTHER SUBJECT in the notebook.");
     else {
-      box.textContent = e && e.code === "rate_limited" ? "Muitas mensagens seguidas. Espere um pouco." : "Não consegui falar com o professor agora. Tente de novo.";
+      box.textContent = e && e.code === "rate_limited" ? tr("Muitas mensagens seguidas. Espere um pouco.", "Too many messages in a row. Wait a moment.") : tr("Não consegui falar com o professor agora. Tente de novo.", "I couldn't reach the tutor right now. Try again.");
       const det = String((e && (e.message || e.code)) || "").replace(/\s+/g," ").slice(0,220);
       if (det) { const sm = el("small","err-det","Detalhe: " + det); sm.style.cssText = "display:block;opacity:.6;font-size:.72em;margin-top:8px;word-break:break-word"; box.append(sm); }
     }
@@ -1104,7 +1185,8 @@ function drill(p, kind){
   const who = person.name;
   const own = [...person.places, ...person.objects, ...person.actions];
   const extra = own.length ? own : [...S.profile.objects, ...S.profile.places, ...S.profile.situations];
-  const task = kind === "q" ? "Transforme em PERGUNTA:" : kind === "n" ? "Transforme em NEGATIVA:" : "Reescreva com " + who + " como sujeito" + (extra.length ? " e inclua \"" + pick(extra) + "\"" : "") + ":";
+  const inc = extra.length ? pick(extra) : "";
+  const task = kind === "q" ? tr("Transforme em PERGUNTA:", "Turn it into a QUESTION:") : kind === "n" ? tr("Transforme em NEGATIVA:", "Make it NEGATIVE:") : tr("Reescreva com " + who + " como sujeito" + (inc ? " e inclua \"" + inc + "\"" : "") + ":", "Rewrite it with " + who + " as the subject" + (inc ? " and include \"" + inc + "\"" : "") + ":");
   S.drill = {kind, who, phrase, task};
   S.view = "chat"; render();
   botSay(task + "\n" + phrase, {icon:"star", save:"d"});
@@ -1116,15 +1198,15 @@ function offline(text, box, voice){
   let out;
   if (d){
     let ok, hint;
-    if (d.kind === "q"){ ok = /\?\s*$/.test(t) && /^(do|does|did|is|are|was|were|have|has|had|can|could|will|would|should|may|might|must|what|where|when|why|how|who|which|whose)\b/i.test(t); hint = "Comece com o auxiliar (do, did, have, is, can…) e termine com \"?\"."; }
-    else if (d.kind === "n"){ ok = /\b(not|never|nobody|nothing|no one)\b|n't/i.test(t); hint = "Use don't, didn't, haven't, isn't, won't ou never."; }
-    else { ok = t.toLowerCase().includes(d.who.toLowerCase()); hint = "Use " + d.who + " como sujeito e ajuste o verbo."; }
-    out = ok ? "Boa! O formato está certo." : "Quase! " + hint;
+    if (d.kind === "q"){ ok = /\?\s*$/.test(t) && /^(do|does|did|is|are|was|were|have|has|had|can|could|will|would|should|may|might|must|what|where|when|why|how|who|which|whose)\b/i.test(t); hint = EN() ? "Start with the auxiliary (do, did, have, is, can…) and end with a question mark." : "Comece com o auxiliar (do, did, have, is, can…) e termine com \"?\"."; }
+    else if (d.kind === "n"){ ok = /\b(not|never|nobody|nothing|no one)\b|n't/i.test(t); hint = tr("Use don't, didn't, haven't, isn't, won't ou never.", "Use don't, didn't, haven't, isn't, won't or never."); }
+    else { ok = t.toLowerCase().includes(d.who.toLowerCase()); hint = tr("Use " + d.who + " como sujeito e ajuste o verbo.", "Use " + d.who + " as the subject and adjust the verb."); }
+    out = ok ? tr("Boa! O formato está certo.", "Nice! The structure is right.") : tr("Quase! ", "Almost! ") + hint;
     var sc = addScore(ok, box._wrap);
     S.drills++; store("ea-drills", S.drills); S.drill = null;
     setTimeout(() => drill(), 700);
   } else {
-    out = "Sem conexão com o professor agora. Vamos treinar com as frases desta aula.";
+    out = tr("Sem conexão com o professor agora. Vamos treinar com as frases desta aula.", "The tutor is offline right now. Let's practise with this lesson's sentences.");
     setTimeout(() => drill(), 500);
   }
   box.textContent = ""; box.append(pixEl(d ? "check" : "chat",2), document.createTextNode(out)); box._raw = out;
@@ -1138,7 +1220,7 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 function speakable(raw){
   const lines = String(raw||"").split(/\n+/);
   const keep = lines.filter(l => !/^\s*(FIX|SCORE)\s*:/i.test(l)).map(l => l.replace(/^\s*(REPLY|YOUR TURN)\s*:\s*/i,""));
-  return keep.join(" ").replace(/\[\[(.+?)\|.+?\]\]/g,"$1").replace(/\{\w+\}/g,"").replace(/\*\*/g,"").replace("ÁUDIO TRANSCRITO","").trim().slice(0,1900);
+  return keep.join(" ").replace(/\[\[(.+?)\|.+?\]\]/g,"$1").replace(/\{\w+\}/g,"").replace(/\*\*/g,"").replace("ÁUDIO TRANSCRITO","").replace("VOICE MESSAGE","").trim().slice(0,1900);
 }
 let actx = null, samSrc = null, samVoices = {};
 const NUM_PT = ["zero","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez"];

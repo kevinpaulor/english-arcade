@@ -216,6 +216,28 @@ const EA = {
     return out;
   },
 
+  async define(word, sentence, mode) {
+    const u = auth.currentUser; if (!u) throw { code: "auth" };
+    const dref = doc(db, "users", u.uid, "days", today());
+    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
+    const w = String(word).slice(0, 40), ctx = String(sentence || "").slice(0, 240);
+    const prompt = mode === "pt"
+      ? "Word: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON {\"pt\": \"the Brazilian Portuguese translation of the word as used in this sentence, max 6 words\"}."
+      : "Word: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON, all in English, no Portuguese: {\"pos\": \"part of speech\", \"def\": \"a short, simple definition in the style of the Cambridge Learner's Dictionary, for the meaning used in this sentence, max 18 words\", \"example\": \"one new natural example sentence using the word\"}.";
+    const order = chatModelOk ? [chatModelOk, ...CHAT_MODELS.filter(x => x !== chatModelOk)] : CHAT_MODELS;
+    let last = null;
+    for (const name of order) {
+      try {
+        const inst = await getAIInst();
+        const mdl = aiMod.getGenerativeModel(inst, { model: name, generationConfig: { responseMimeType: "application/json", maxOutputTokens: 200, temperature: 0.2 } });
+        const r = await mdl.generateContent(prompt);
+        const obj = JSON.parse(r.response.text().trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim());
+        aiUsed.n++; setDoc(dref, { ai: increment(1) }, { merge: true }).catch(() => {});
+        return obj;
+      } catch (e) { console.warn("define", name, e); last = e; }
+    }
+    throw { code: "ai", message: String(last && last.message || last) };
+  },
   // ---------- Meus cadernos (fotos de páginas do aluno) ----------
   async readPage(b64, mime) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
