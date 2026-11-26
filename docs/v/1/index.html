@@ -371,7 +371,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:20px/1.2 'VT
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 13:57</div>
+    <div class="ver" id="ver">v1 · build 26/11 18:02</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -407,7 +407,7 @@ let KP = "ea:guest:";
 const load = (k, d) => { try { const v = localStorage.getItem(KP + k); return v ? JSON.parse(v) : d; } catch(e) { return d; } };
 const store = (k, v) => { try { localStorage.setItem(KP + k, JSON.stringify(v)); } catch(e) {} };
 
-const S = {view:"chat", ctx:"day", date:DATES[DATES.length-1], ym:null, cal:true, topic:null, tp:0,
+const S = {view:"chat", ctx:"free", date:DATES[DATES.length-1], ym:null, cal:true, topic:null, tp:0,
   profile:normProfile(load("ea-profile", null)), open:null, level:load("ea-level","medium"),
   tut:load("ea-tut", true), voice:load("ea-voice","device"), meOpen:true, seen:load("ea-seen", []), log:load("ea-log", []), drills:load("ea-drills", 0), score:load("ea-score", 0), sessions:load("ea-sessions", []), cur:null, conv:null,
   drill:null, hist:[], busy:false};
@@ -462,9 +462,9 @@ $("mic").innerHTML = pix("mic",3); $("sendBtn").innerHTML = pix("send",3);
 
 /* ---------- helpers ---------- */
 const topicPages = k => P.filter(p => p.k === k && !isHidden(p));
-const ctxPages = () => { const r = S.ctx === "nb" && T[S.topic] ? [topicPages(S.topic)[S.tp]].filter(Boolean) : (byDate[S.date] || []); return r.length ? r : (byDate[S.date] || byDate[DATES[DATES.length-1]] || []); };
-const ctxColor = () => S.ctx === "art" && S.art && S.art.paras ? "#29e6ff" : (ctxPages()[0] && T[ctxPages()[0].k] ? T[ctxPages()[0].k].c : "#ff3ea5");
-const ctxLabel = () => S.ctx === "art" && S.art && S.art.paras ? "📰 " + S.art.title.slice(0, 50) + (S.art.lesson ? " · 🔗 " + short(S.art.lesson) : "") : S.ctx === "nb" && T[S.topic] ? topicName(S.topic) : (S.level !== "simple" ? "Lesson of " : "Aula de ") + fmt(S.date);
+const ctxPages = () => { if (S.ctx === "free" || (S.ctx === "art" && S.art && S.art.paras)) return []; const r = S.ctx === "nb" && T[S.topic] ? [topicPages(S.topic)[S.tp]].filter(Boolean) : (byDate[S.date] || []); return r.length ? r : (byDate[S.date] || byDate[DATES[DATES.length-1]] || []); };
+const ctxColor = () => S.ctx === "free" ? "#3ddc6b" : S.ctx === "art" && S.art && S.art.paras ? "#29e6ff" : (ctxPages()[0] && T[ctxPages()[0].k] ? T[ctxPages()[0].k].c : "#ff3ea5");
+const ctxLabel = () => S.ctx === "free" ? tr("Conversa livre","Free conversation") : S.ctx === "art" && S.art && S.art.paras ? "📰 " + S.art.title.slice(0, 50) + (S.art.lesson ? " · 🔗 " + short(S.art.lesson) : "") : S.ctx === "nb" && T[S.topic] ? topicName(S.topic) : (S.level !== "simple" ? "Lesson of " : "Aula de ") + fmt(S.date);
 /* ---------- páginas originais (fotos) e MEUS CADERNOS ---------- */
 const SCANS = window.SCANS || {};
 const SCAN_DIR = "../../scans/";
@@ -650,7 +650,7 @@ function namesText(parent, str){
 function markSeen(d){ if (!S.seen.includes(d)){ S.seen.push(d); store("ea-seen", S.seen); } }
 function logMsg(r, t){ S.log.push({r, t, c:ctxLabel(), ts:Date.now()}); S.log = S.log.slice(-120); store("ea-log", S.log); }
 /* uma conversa por dia e por tema: mudar de aula/caderno ou de dia abre outra conversa no PESSOAL */
-function ctxKey(){ return todayKey() + "|" + (S.ctx === "art" && S.art && S.art.id ? "art:" + S.art.id : S.ctx === "nb" ? "nb:" + S.topic : "day:" + S.date); }
+function ctxKey(){ return todayKey() + "|" + (S.ctx === "free" ? "free" : S.ctx === "art" && S.art && S.art.id ? "art:" + S.art.id : S.ctx === "nb" ? "nb:" + S.topic : "day:" + S.date); }
 function ctxTopics(){ return S.ctx === "art" ? [] : [...new Set(ctxPages().map(p => p.k))]; }
 function rec(r, t, extra){
   const key = ctxKey();
@@ -814,7 +814,7 @@ function renderCal(m){
       b.onclick = () => {
         if (b._lp || Date.now() - CALSEL.lpAt < 900){ b._lp = false; return; }
         if (CALSEL.on){ CALSEL.days.has(key) ? CALSEL.days.delete(key) : CALSEL.days.add(key); CALSEL.confirm = false; render(); return; }
-        S.date = key; S.ctx = "day"; render();
+        S.date = key; render();
       };
       let lpT = null, sx = 0, sy = 0;
       const startSel = () => { if (b._lp || Date.now() - CALSEL.lpAt < 900) return; b._lp = true; CALSEL.lpAt = Date.now(); clearTimeout(lpT); CALSEL.on = true; CALSEL.days.add(key); try { navigator.vibrate && navigator.vibrate(30); } catch(e) {} render(); };
@@ -998,7 +998,7 @@ function renderDiary(m){
       const b = el("button","conv"), first = x.msgs.find(q => q.r === "u");
       const tps = sessTopics(x), c = tps[0] ? tps[0].c : "#fff";
       b.style.borderLeft = "6px solid " + c;
-      const label = (x.cx && x.cx.ctx === "art") ? "📰 " + (x.cx.artTitle || "Article").slice(0, 50) : (x.cx && x.cx.ctx === "nb" && T[x.cx.topic]) ? topicName(x.cx.topic) : (x.cx && x.cx.date ? tr("Aula de ","Lesson of ") + fmt(x.cx.date) : x.ctx);
+      const label = (x.cx && x.cx.ctx === "free") ? "💬 " + tr("Conversa livre","Free conversation") : (x.cx && x.cx.ctx === "art") ? "📰 " + (x.cx.artTitle || "Article").slice(0, 50) : (x.cx && x.cx.ctx === "nb" && T[x.cx.topic]) ? topicName(x.cx.topic) : (x.cx && x.cx.date ? tr("Aula de ","Lesson of ") + fmt(x.cx.date) : x.ctx);
       const cnt = x.msgs.filter(q => q.r === "u").length;
       b.append(el("span","px", label.toUpperCase() + (tps.length ? " · " + tps.map(t => t.n).join(" + ").toUpperCase() : "")),
         el("b",null,"“" + first.t.slice(0,90) + "”"),
@@ -1009,9 +1009,10 @@ function renderDiary(m){
   });
 }
 /* ---------- troca de tema: cada tema tem sua conversa; um divisor mostra no chat quando o assunto muda ---------- */
-function ctxId(){ return S.ctx === "art" && S.art && S.art.id ? "art:" + S.art.id : S.ctx === "nb" ? "nb:" + S.topic : "day:" + S.date; }
+function ctxId(){ return S.ctx === "free" ? "free" : S.ctx === "art" && S.art && S.art.id ? "art:" + S.art.id : S.ctx === "nb" ? "nb:" + S.topic : "day:" + S.date; }
 let lastCtxShown = null;
 function ctxSourceOpen(){
+  if (S.ctx === "free"){ S.view = "toc"; render(); return; }
   if (S.ctx === "art" && S.art && S.art.paras){ S.view = "read"; }
   else if (S.ctx === "nb" && T[S.topic]){ S.view = "nb"; }
   else { S.view = "day"; }
@@ -1019,7 +1020,7 @@ function ctxSourceOpen(){
 }
 function ctxDivider(){
   const d = el("div","ctxdiv"), i = el("i"); i.style.background = ctxColor();
-  const lab = el("span",null,(S.ctx === "art" ? "" : S.ctx === "nb" ? "📒 " : "📅 ") + ctxLabel());
+  const lab = el("span",null,(S.ctx === "free" ? "💬 " : S.ctx === "art" ? "" : S.ctx === "nb" ? "📒 " : "📅 ") + ctxLabel());
   const open = el("button","px",tr("ABRIR","OPEN")); open.onclick = ctxSourceOpen;
   d.append(i, lab, open); return d;
 }
@@ -1043,10 +1044,18 @@ function openSwitcher(){
   top.append(el("b","px",tr("TEMA DA CONVERSA","CONVERSATION TOPIC")), x);
   const now = el("div","swnow"), i = el("i"); i.style.background = ctxColor();
   const open = el("button","act main px",tr("ABRIR ▸","OPEN ▸")); open.onclick = () => { sh.remove(); ctxSourceOpen(); };
-  now.append(i, el("span",null,ctxLabel()), open);
+  now.append(i, el("span",null,(S.ctx === "free" ? "💬 " : "") + ctxLabel()), open);
+  if (S.ctx === "free") open.textContent = tr("ESCOLHER AULA ▸","PICK A LESSON ▸");
   sh.append(top, now, el("small","hint",tr("Temas recentes — toque para voltar à conversa:","Recent topics — tap to go back to that conversation:")));
   const seen = new Set([ctxId()]), list = el("div","swlist");
+  if (S.ctx !== "free"){
+    const fb = el("button","swrow"), fi = el("i"); fi.style.background = "#3ddc6b";
+    fb.append(fi, el("span",null,"💬 " + tr("Conversa livre","Free conversation")), el("small",null,tr("sem aula","no lesson")));
+    fb.onclick = () => { sh.remove(); const key = todayKey() + "|free"; const q = S.sessions.find(x => x.key === key); if (q) restoreSession(q, true); else S.ctx = "free"; S.view = "chat"; render(); };
+    list.append(fb); seen.add("free");
+  }
   S.sessions.filter(q => q.cx && q.msgs.some(m => m.r === "u")).forEach(q => {
+    if (q.cx.ctx === "free") return;
     const id = q.cx.ctx === "art" ? "art:" + q.cx.art : q.cx.ctx === "nb" ? "nb:" + q.cx.topic : "day:" + q.cx.date;
     if (seen.has(id) || seen.size > 9) return; seen.add(id);
     if (q.cx.ctx === "art" && !S.arts.find(a => a.id === q.cx.art)) return;
@@ -1066,7 +1075,8 @@ function openSwitcher(){
 /* volta para a conversa: reabre no chat o que foi falado e deixa a IA lembrar */
 function restoreSession(x, force){
   if (x.cx && (force || true)){
-    if (x.cx.ctx === "art"){ const a = S.arts.find(q => q.id === x.cx.art); if (a){ S.art = a; S.ctx = "art"; } }
+    if (x.cx.ctx === "free"){ S.ctx = "free"; }
+    else if (x.cx.ctx === "art"){ const a = S.arts.find(q => q.id === x.cx.art); if (a){ S.art = a; S.ctx = "art"; } }
     else if (x.cx.ctx === "nb" && T[x.cx.topic]){ S.ctx = "nb"; S.topic = x.cx.topic; S.tp = Math.min(x.cx.tp || 0, topicPages(x.cx.topic).length - 1); }
     else if (x.cx.date && byDate[x.cx.date]){ S.ctx = "day"; S.date = x.cx.date; }
   }
@@ -1192,7 +1202,7 @@ function render(){
   if (S.view !== lastView){ if (lastView !== null) stopSpeech(); lastView = S.view; }
   const m = $("main"); m.textContent = ""; closeSheet();
   ["chat","day","toc","diary","me"].forEach(v => $("t-"+v).setAttribute("aria-selected", String(S.view===v || (v==="toc" && (S.view==="nb" || S.view==="read")) || (v==="me" && S.view==="export") || (v==="diary" && S.view==="conv"))));
-  if (S.view === "day") S.ctx = "day"; if (S.view === "nb") S.ctx = "nb"; if (S.view === "read" && S.art && S.art.paras) S.ctx = "art";
+  // ver o caderno, um assunto ou uma matéria não muda o tema do chat; só TALK, tocar numa data ou o seletor ▾ mudam
   const chat = S.view === "chat"; m.hidden = chat; $("chat").hidden = !chat;
   if (S.view === "day") renderDay(m);
   else if (S.view === "toc") renderToc(m);
@@ -1690,7 +1700,7 @@ function followUp(label, mode, about){ if (S.busy) return; userSay(label); S.his
 /* ---------- Claude ---------- */
 function lessonContext(){
   if (S.ctx === "art" && S.art && S.art.paras) return "ARTICLE he is reading in the app: \"" + S.art.title + "\"" + (S.art.source ? " (" + S.art.source + ")" : "") + "\n" + S.art.paras.join("\n").slice(0, 6000) + "\nTalk about this article: its ideas, vocabulary and expressions. Quote short bits of it when explaining." + (S.art.lesson && byDate[S.art.lesson] ? "\nHe linked it to his lesson of " + short(S.art.lesson) + " — connect the article with this lesson when it helps:\n" + byDate[S.art.lesson].filter(p => !p.mine).map(p => "• " + p.t + " — Phrases: " + p.f.slice(0, 8).join(" | ") + " — Vocabulary: " + (p.v || []).map(v => v[0]).join(", ")).join("\n") : "");
-  if (!ctxPages().length) return "(No lesson selected — free conversation. Talk about his life, his interests and everyday English.)";
+  if (!ctxPages().length) return "FREE CONVERSATION — no lesson selected. Chat naturally about anything he wants: his day, his life, work, plans, opinions, news, movies. Bring in the people and things from his world when it fits. (He can pick a lesson later at the top.)";
   return ctxPages().map(p => "• " + short(p.d) + " — " + p.t + " (" + T[p.k].n + ")\n  Phrases: " + p.f.join(" | ") + "\n  Vocabulary: " + (p.v||[]).map(v=>v[0]+" = "+v[1]).join("; ") + (p.g ? "\n  Tip: " + p.g : "")).join("\n");
 }
 const LEVEL_RULE = {simple:"SIMPLE level: short sentences and basic words (A2)", medium:"MEDIUM level: clear, natural English (B1-B2)", native:"NATIVE level: idiomatic, the way a native speaker would say it (C1)"};
@@ -1751,7 +1761,7 @@ async function askClaude(text, voice, mode, about){
 
 /* ---------- drills & offline ---------- */
 function drill(p, kind){
-  p = p || pick(ctxPages()); if (!p) return;
+  p = p || pick(ctxPages().length ? ctxPages() : P.filter(x => !isHidden(x))); if (!p) return;
   const phrase = pick(p.f.filter(f => f.length < 120)) || p.f[0];
   kind = kind || pick(["q","n","s"]);
   const person = S.profile.people.length ? pick(S.profile.people) : {name:"Alex", places:[], objects:[], actions:[]};
@@ -1779,7 +1789,7 @@ function offline(text, box, voice){
     S.drills++; store("ea-drills", S.drills); S.drill = null;
     setTimeout(() => drill(), 700);
   } else {
-    out = tr("Sem conexão com o professor agora. Vamos treinar com as frases desta aula.", "The tutor is offline right now. Let's practise with this lesson's sentences.");
+    out = tr("Sem conexão com o professor agora. Vamos treinar com algumas frases das aulas.", "The tutor is offline right now. Let's practise with some lesson sentences.");
     setTimeout(() => drill(), 500);
   }
   box.textContent = ""; box.append(pixEl(d ? "check" : "chat",2), document.createTextNode(out)); box._raw = out;
@@ -2295,6 +2305,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-27d", d:"26/11", pt:["O chat começa em conversa livre: escolher aula, caderno ou matéria no topo ▾ é opcional"], en:["The chat starts as a free conversation: picking a lesson, notebook or article at the top ▾ is optional"]},
   {id:"2026-11-27c", d:"26/11", pt:["Selecione várias palavras (expressão ou frase) no chat e no caderno para ver o significado, exemplos, copiar ou perguntar"], en:["Select several words (an expression or a sentence) in the chat and notebook to see the meaning, examples, copy or ask about it"]},
   {id:"2026-11-27b", d:"26/11", pt:["Fotos de páginas: aviso ✓ quando salvam na conta; se a internet falhar, ficam no aparelho e são reenviadas sozinhas"], en:["Page photos: a ✓ shows when they are saved to your account; if the connection fails, they stay on the device and are re-sent automatically"]},
   {id:"2026-11-27a", d:"26/11", pt:["Calendário: segure uma data para selecionar e apagar aulas (só para você). Dá para restaurar depois"], en:["Calendar: press and hold a date to select and delete lessons (only for you). You can restore them later"]},
@@ -2363,7 +2374,7 @@ async function hydrate(u){
   showScore(); S.view = "chat"; render();
   $("login").hidden = true; preloadDict();
   if (last && dayOf(last) === todayKey()) botSay(tr("Bem-vindo de volta! Continuando a conversa de hoje.", "Welcome back! Picking up today's conversation."), {icon:"chat"});
-  else botSay("Hey " + (S.profile.me.name || "there") + "! Ask me anything in English about the lesson of " + fmt(S.date) + " — or type another date.", {icon:"chat"});
+  else { S.ctx = "free"; lastCtxShown = ctxId(); render(); botSay("Hey " + (S.profile.me.name || "there") + "! Let's chat in English about anything you like. " + tr("(Se quiser, toque no tema lá em cima ▾ para escolher uma aula, caderno ou matéria.)","Want to focus on a lesson, notebook or article? Tap the topic at the top ▾."), {icon:"chat"}); }
   if (S.tut) $("msgs").scrollTop = 0;
 }
 function bootEA(){
