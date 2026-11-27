@@ -383,7 +383,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:16px/1.45 'S
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 21:15</div>
+    <div class="ver" id="ver">v1 · build 27/11 05:37</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -2098,14 +2098,25 @@ function hl(i){
 }
 function clearHl(){ if (hlEl) hlEl.classList.remove("say"); hlEl = null; }
 function markAt(off){ const mk = SP.map.marks; let j = Math.max(0, SP.from); while (j + 1 < mk.length && mk[j + 1].start - SP.base <= off) j++; return j; }
-const CPS = 14; /* letras por segundo da voz do aparelho em 1×, para estimar quando não há aviso de palavra */
+/* posição "pesada": vírgula e ponto contam como pausa, para o destaque não correr na frente da voz */
+function weights(text){
+  const W = new Float32Array(text.length + 1); let w = 0;
+  for (let i = 0; i < text.length; i++){ W[i] = w; const c = text[i]; w += 1 + (/[,;:—–]/.test(c) ? 5 : /[.!?…]/.test(c) ? 9 : 0); }
+  W[text.length] = w; return W;
+}
+function markAtW(wv){ const mk = SP.map.marks, W = SP.W; let j = Math.max(0, SP.from); while (j + 1 < mk.length && W[Math.min(W.length - 1, mk[j + 1].start - SP.base)] <= wv) j++; return j; }
+/* velocidade da voz do aparelho (em "unidades pesadas" por segundo em 1×): começa num chute e se ajusta medindo cada frase */
+let CPSW = (() => { const v = +load("ea-cpsw", 0); return v > 5 && v < 40 ? v : 15; })();
 function hlTick(){
   if (!SP || SP.my !== speakSeq) return;
   const now = performance.now(), dt = (now - SP.last) / 1000; SP.last = now;
   if (!paused){
-    if (engine === "aud" && aud && isFinite(aud.duration) && aud.duration > 0){ if (!aud.paused) hl(markAt(aud.currentTime / aud.duration * SP.text.length)); }
-    else if (engine === "ctx" && SP.dur){ SP.clock += dt * RATE; hl(markAt(Math.min(1, SP.clock / SP.dur) * SP.text.length)); }
-    else if (engine === "web" && !SP.boundary && SP.started){ SP.clock += dt * RATE * 0.95; hl(markAt(SP.clock * CPS)); }
+    if (engine === "aud" && aud && isFinite(aud.duration) && aud.duration > 0){ if (!aud.paused) hl(markAtW(aud.currentTime / aud.duration * SP.W[SP.text.length])); }
+    else if (engine === "ctx" && SP.dur){ SP.clock += dt * RATE; hl(markAtW(Math.min(1, SP.clock / SP.dur) * SP.W[SP.text.length])); }
+    else if (engine === "web" && !SP.boundary && SP.sync){
+      const y = SP.sync; y.el += dt * RATE * 0.95;
+      hl(markAtW(Math.min(y.w1 - 0.5, y.w0 + y.el * CPSW)));
+    }
   }
   requestAnimationFrame(hlTick);
 }
@@ -2208,7 +2219,7 @@ async function startSpeak(map, idx, btn, isMe, box){
   stopSpeech(); const my = speakSeq; playing = btn; markPlaying(btn);
   idx = Math.max(0, Math.min(idx || 0, Math.max(0, map.marks.length - 1)));
   const base = idx > 0 && map.marks[idx] ? map.marks[idx].start : 0, text = map.text.slice(base);
-  SP = {map, idx, from: idx, base, text, btn, isMe, box, my, last: performance.now(), clock: 0, dur: 0, boundary: false, started: false};
+  SP = {map, idx, from: idx, base, text, W: weights(text), btn, isMe, box, my, last: performance.now(), clock: 0, dur: 0, boundary: false, sync: null};
   hl(idx); requestAnimationFrame(hlTick);
   const segsOf = t => isMe ? [{t, pt: false}] : langSegments(t);
   const segs = segsOf(text);
@@ -2220,7 +2231,7 @@ async function startSpeak(map, idx, btn, isMe, box){
       const full = map.text, fsegs = segsOf(full), fpt = fsegs.every(x => x.pt), fmix = !fpt && fsegs.some(x => x.pt);
       const ab = await aiAudio(full, fmix ? "mix" : fpt);
       if (my !== speakSeq) return;
-      SP.base = 0; SP.from = 0; SP.text = full;
+      SP.base = 0; SP.from = 0; SP.text = full; SP.W = weights(full);
       playAI(ab, done, my, base / full.length); return;
     } catch(e) {
       if (my !== speakSeq) return;
@@ -2235,12 +2246,15 @@ async function startSpeak(map, idx, btn, isMe, box){
       if (my !== speakSeq) return;
       try {
         engine = "web";
-        let pos = 0;
-        segs.forEach((sg, i) => {
+        let pos = 0; const parts = [];
+        segs.forEach(sg => (sg.t.match(/[^.!?;:]+[.!?;:]*\s*|[.!?;:]+\s*/g) || [sg.t]).forEach(t => { t = t.trim(); if (/[A-Za-zÀ-ÿ\d]/.test(t)) parts.push({t, pt: sg.pt}); }));
+        parts.forEach((sg, i) => {
           const u = new SpeechSynthesisUtterance(sg.t), v = pickVoice(voices, sg.pt);
           u.lang = v ? v.lang : (sg.pt ? "pt-BR" : "en-US"); if (v) { try { u.voice = v; } catch(e) {} } u.rate = 0.95 * RATE;
-          const fw = (sg.t.match(WORD_RE) || [""])[0], at = fw ? text.indexOf(fw, pos) : pos, off = at < 0 ? pos : at; pos = off + 1;
-          u.onstart = () => { if (my !== speakSeq || !SP) return; SP.started = true; if (!SP.boundary){ SP.clock = off / CPS; } };
+          const fw = (sg.t.match(WORD_RE) || [""])[0], at = fw ? text.indexOf(fw, pos) : -1, off = at < 0 ? pos : at;
+          const lw = (sg.t.match(WORD_RE) || []).pop() || "", endAt = lw ? text.indexOf(lw, off) : -1, end = Math.min(text.length, endAt < 0 ? off + sg.t.length : endAt + lw.length + 1);
+          pos = Math.max(pos, end);
+          u.onstart = () => { if (my !== speakSeq || !SP) return; SP.sync = {w0: SP.W[off], w1: SP.W[end], el: 0, t0: performance.now()}; if (!SP.boundary) hl(markAt(off)); };
           u.onboundary = e => {
             if (my !== speakSeq || !SP || (e.name && e.name !== "word")) return;
             SP.boundary = true;
@@ -2248,7 +2262,12 @@ async function startSpeak(map, idx, btn, isMe, box){
             for (let j = SP.idx; j < Math.min(mk.length, SP.idx + 8); j++) if (mk[j].w === w){ hl(j); return; }
             hl(markAt(off + e.charIndex));
           };
-          if (i === segs.length - 1){ u.onend = done; u.onerror = e => { if (e && (e.error === "interrupted" || e.error === "canceled")) return; done(); }; }
+          u.onend = () => {
+            if (my !== speakSeq || !SP) return;
+            const y = SP.sync; if (y && y.el > 0.6 && !paused){ const obs = (y.w1 - y.w0) / y.el; if (obs > 5 && obs < 40){ CPSW = CPSW * 0.6 + obs * 0.4; store("ea-cpsw", Math.round(CPSW * 10) / 10); } }
+            if (i === parts.length - 1) done();
+          };
+          if (i === parts.length - 1) u.onerror = e => { if (e && (e.error === "interrupted" || e.error === "canceled")) return; done(); };
           speechSynthesis.speak(u);
         });
         return;
@@ -2521,6 +2540,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-27l", d:"27/11", pt:["Destaque das palavras mais sincronizado com a voz: acerta a posição a cada frase e aprende a velocidade da voz do seu aparelho"], en:["Word highlight better synced with the voice: it re-syncs every sentence and learns your device voice speed"]},
   {id:"2026-11-27k", d:"26/11", pt:["A palavra que está sendo falada fica azul","Enquanto o áudio toca (ou pausado), toque numa palavra para continuar dali","Mudar a velocidade não volta mais para o começo","A voz não lê mais os emojis"], en:["The word being spoken turns blue","While audio plays (or is paused), tap a word to continue from there","Changing the speed no longer restarts from the beginning","The voice no longer reads emojis"]},
   {id:"2026-11-27j", d:"26/11", pt:["Contador de uso da IA em ⚙: quantos usos restam hoje"], en:["AI use counter in ⚙: how many uses you have left today"]},
   {id:"2026-11-27i", d:"26/11", pt:["Correção: palavras apareciam com [[ ]] e às vezes surgia uma linha CONTINUITY na resposta"], en:["Fix: words sometimes showed up with [[ ]] and a CONTINUITY line appeared in replies"]},
