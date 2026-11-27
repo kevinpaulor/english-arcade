@@ -185,6 +185,8 @@ const EA = {
   async deleteSession(id) { const u = auth.currentUser; if (u) await deleteDoc(doc(db, "users", u.uid, "chats", id)); },
   async countMessage() { const u = auth.currentUser; if (u) try { await setDoc(doc(db, "users", u.uid, "days", today()), { msgs: increment(1) }, { merge: true }); } catch (e) {} },
 
+  async aiUsage() { const u = auth.currentUser; if (!u) return null; const n = await aiUsedToday(doc(db, "users", u.uid, "days", today())); return { used: n, limit: aiLimit() }; },
+
   async ask(prompt, onText) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const dref = doc(db, "users", u.uid, "days", today());

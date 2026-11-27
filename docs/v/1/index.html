@@ -180,6 +180,12 @@ main[hidden],.chat[hidden]{display:none}
 .play{flex:none;width:30px;height:30px;display:grid;place-items:center;background:none;border:2px solid rgba(255,255,255,.35);padding:0}
 .play.on{border-color:#fff}
 .nospeak .play,.nospeak .spd{display:none}
+.aibar{height:14px;border:2px solid var(--line);background:var(--bg);margin:8px 0 6px;display:flex}
+.aibar i{display:block;height:100%;background:#3ddc6b}
+.aibar i.mid{background:#ffd84a}
+.aibar i.low{background:#ff3ea5}
+.ainum{font-size:15px}
+.ainum b{font-size:18px}
 .pcol{flex:none;display:flex;flex-direction:column;gap:4px;align-items:center}
 .spd{width:30px;height:22px;padding:0;background:none;border:2px solid rgba(255,255,255,.35);font:700 10px/1 'Space Mono',monospace;color:#fff;letter-spacing:-.5px}
 .spd.slow{border-color:#29e6ff;color:#29e6ff}
@@ -375,7 +381,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:16px/1.45 'S
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 21:01</div>
+    <div class="ver" id="ver">v1 · build 26/11 21:02</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -1170,6 +1176,18 @@ function renderSettings(m){
   te.onclick = () => speakText("Never confuse shit with chocolate. Trust me, I know.", te, true);
   tp.onclick = () => speakText("Olá! Vamos estudar inglês hoje? Escolha o nível e mande uma frase.", tp, false);
   t.append(te, tp); v.append(t); m.append(v);
+  if (window.EA && EA.user() && EA.aiUsage){
+    const u = el("section","field card"); u.append(el("span","px",tr("USO DA IA HOJE","AI USE TODAY")));
+    const num = el("div","ainum","…"), bar = el("div","aibar"), fill = el("i"); bar.append(fill); fill.style.width = "0%";
+    u.append(num, bar, el("p","note",tr("Conta 1 uso: cada resposta do tutor, + EXAMPLES, EXPLAIN MORE, tocar numa palavra no modo EASY, cada áudio com a VOZ IA, abrir uma matéria e ler uma foto. Renova à meia-noite.","Each of these counts as 1 use: a tutor reply, + EXAMPLES, EXPLAIN MORE, the AI VOICE playing a message, opening an article and reading a photo. Resets at midnight.")));
+    m.append(u);
+    EA.aiUsage().then(r => {
+      if (!r) { u.remove(); return; }
+      const left = Math.max(0, r.limit - r.used), pct = Math.round(left / r.limit * 100);
+      num.textContent = ""; num.append(el("b",null,String(left)), document.createTextNode(tr(" de " + r.limit + " restantes · " + r.used + " usados"," of " + r.limit + " left · " + r.used + " used")));
+      fill.style.width = pct + "%"; fill.className = pct <= 10 ? "low" : pct <= 30 ? "mid" : "";
+    }).catch(() => { num.textContent = tr("Não deu para ver agora.","Couldn't check right now."); });
+  }
   const o = el("section","field card"); o.append(el("span","px","OUTROS"));
   const tu = el("button","act px", S.tut ? "TUTORIAL: LIGADO" : "TUTORIAL: DESLIGADO");
   tu.onclick = () => { S.tut = !S.tut; store("ea-tut", S.tut); render(); };
@@ -2396,6 +2414,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-27j", d:"26/11", pt:["Contador de uso da IA em ⚙: quantos usos restam hoje"], en:["AI use counter in ⚙: how many uses you have left today"]},
   {id:"2026-11-27i", d:"26/11", pt:["Correção: palavras apareciam com [[ ]] e às vezes surgia uma linha CONTINUITY na resposta"], en:["Fix: words sometimes showed up with [[ ]] and a CONTINUITY line appeared in replies"]},
   {id:"2026-11-27h", d:"26/11", pt:["Enter agora pula linha na mensagem. Para enviar, toque no aviãozinho (no computador, Ctrl+Enter também envia)"], en:["Enter now adds a new line. To send, tap the paper plane (on a computer, Ctrl+Enter also sends)"]},
   {id:"2026-11-27g", d:"26/11", pt:["Velocidade do áudio: toque no 1× ao lado do play para ouvir mais devagar (0,85×, 0,7×, 0,5×)","As correções (FIX) agora também são lidas em voz alta"], en:["Audio speed: tap 1× next to play to listen slower (0.85×, 0.7×, 0.5×)","Corrections (FIX) are now read aloud too"]},
