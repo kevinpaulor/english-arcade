@@ -45,6 +45,9 @@ async function getModel(name) {
 }
 // Conta de usos da IA no dia: lê do Firestore uma vez e depois conta aqui (resposta mais rápida).
 const aiUsed = { day: "", n: 0 };
+/* limite diário de IA: o administrador (Kevin) tem mais usos que os outros usuários */
+const ADMIN_AI_LIMIT = 300;
+const aiLimit = () => { const u = auth.currentUser; return u && ADMIN_UIDS.includes(u.uid) ? Math.max(ADMIN_AI_LIMIT, AI_DAILY_LIMIT) : AI_DAILY_LIMIT; };
 async function aiUsedToday(dref) {
   if (aiUsed.day !== today()) {
     aiUsed.day = today(); aiUsed.n = 0;
@@ -185,7 +188,7 @@ const EA = {
   async ask(prompt, onText) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const dref = doc(db, "users", u.uid, "days", today());
-    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
+    if ((await aiUsedToday(dref)) >= aiLimit()) throw { code: "limit" };
     let text = "", ok = false, last = null;
     const order = chatModelOk ? [chatModelOk, ...CHAT_MODELS.filter(x => x !== chatModelOk)] : CHAT_MODELS;
     for (const name of order) {
@@ -204,7 +207,7 @@ const EA = {
   async speak(text, lang) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const dref = doc(db, "users", u.uid, "days", today());
-    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
+    if ((await aiUsedToday(dref)) >= aiLimit()) throw { code: "limit" };
     await getAIInst();
     let out = null, last = null;
     for (const name of (ttsModelOk ? [ttsModelOk, ...TTS_MODELS.filter(x => x !== ttsModelOk)] : TTS_MODELS)) {
@@ -219,7 +222,7 @@ const EA = {
   async define(word, sentence, mode) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const dref = doc(db, "users", u.uid, "days", today());
-    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
+    if ((await aiUsedToday(dref)) >= aiLimit()) throw { code: "limit" };
     const w = String(word).slice(0, 300), ctx = String(sentence || "").slice(0, 240);
     const prompt = mode === "ex"
       ? "Word or expression: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON, all in English: {\"examples\": [\"three new, natural, varied example sentences using it with the same meaning\"]}."
@@ -244,7 +247,7 @@ const EA = {
   async readUrl(url) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const dref = doc(db, "users", u.uid, "days", today());
-    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
+    if ((await aiUsedToday(dref)) >= aiLimit()) throw { code: "limit" };
     const prompt = "Open this web page: " + String(url).slice(0, 500) + "\n" +
       "The user wants to read it inside an English-learning reader app. Return exactly this format and nothing else:\n" +
       "TITLE: <the real headline of the article — never site menu text such as 'Skip to content', 'Menu' or 'Sign in'>\nSOURCE: <the site or publication name>\nTEXT:\n<the main article body, paragraph by paragraph as written on the page, separated by blank lines. Skip menus, ads, photo captions, related links and comments.>\n" +
@@ -267,7 +270,7 @@ const EA = {
   async articleMeta(text, lang) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const dref = doc(db, "users", u.uid, "days", today());
-    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
+    if ((await aiUsedToday(dref)) >= aiLimit()) throw { code: "limit" };
     const prompt = "Here is the start of a text the student will read:\n\"\"\"\n" + String(text).slice(0, 3500) + "\n\"\"\"\nReturn ONLY JSON: {\"title\": \"a short, specific headline for this text, max 10 words, " + (lang === "en" ? "in English" : "in the text's language") + "\"}.";
     const order = chatModelOk ? [chatModelOk, ...CHAT_MODELS.filter(x => x !== chatModelOk)] : CHAT_MODELS;
     let last = null;
@@ -287,7 +290,7 @@ const EA = {
   async readPage(b64, mime) {
     const u = auth.currentUser; if (!u) throw { code: "auth" };
     const dref = doc(db, "users", u.uid, "days", today());
-    if ((await aiUsedToday(dref)) >= AI_DAILY_LIMIT) throw { code: "limit" };
+    if ((await aiUsedToday(dref)) >= aiLimit()) throw { code: "limit" };
     const prompt = "This is a photo of a page from a student's English notebook, textbook or worksheet. The student is Brazilian.\n" +
       "Read it carefully (handwriting included). Keep only the study content, and CORRECT every English mistake you find.\n" +
       "Return ONLY JSON with these keys:\n" +
