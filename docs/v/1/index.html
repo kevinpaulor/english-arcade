@@ -188,7 +188,9 @@ main[hidden],.chat[hidden]{display:none}
 .ainum b{font-size:18px}
 .pcol{flex:none;display:flex;flex-direction:column;gap:4px;align-items:center}
 .spd{width:30px;height:22px;padding:0;background:none;border:2px solid rgba(255,255,255,.35);font:700 10px/1 'Space Mono',monospace;color:#fff;letter-spacing:-.5px}
-.spd.slow{border-color:#29e6ff;color:#29e6ff}
+.spd{border-color:#29e6ff;color:#29e6ff}
+.spd.slow{background:#29e6ff;color:#120a24}
+.say{color:#29e6ff !important;background:rgba(41,230,255,.16);text-decoration:underline;text-decoration-color:#29e6ff !important;text-underline-offset:3px}
 .more{display:flex;gap:8px;margin-top:6px}
 .more button{min-height:32px;padding:0 8px;font-size:7px;background:none;border:2px solid var(--line)}
 .tut{background:var(--panel);border:2px solid var(--line);padding:14px;font-size:14px}
@@ -381,7 +383,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:16px/1.45 'S
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 26/11 21:02</div>
+    <div class="ver" id="ver">v1 · build 26/11 21:15</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -1642,7 +1644,7 @@ function bubble(cls, voice, host){
   const wrap = el("div","m " + cls), b = el("div","bub"), t = el("div","txt");
   if (voice) t.append(el("span","vtag",tr("ÁUDIO TRANSCRITO","VOICE MESSAGE")));
   const pb = el("button","play"); pb.setAttribute("aria-label","Ouvir"); pb.innerHTML = PLAY;
-  pb.onclick = () => speakText(speakable(t._raw || t.textContent), pb, cls === "me");
+  pb.onclick = () => speakBubble(t, pb, cls === "me");
   const pc = el("div","pcol"); pc.append(pb, spdBtn());
   b.append(t, pc); wrap.append(b); t._play = pb; t._wrap = wrap;
   if (cls === "me") longPressCopy(b, t); else b.classList.add("selectable");
@@ -1814,7 +1816,7 @@ async function askClaude(text, voice, mode, about){
     S.drill = null;
     const reply = (res.text.split("\n").find(l => /^\s*REPLY\s*:/i.test(l)) || res.text).slice(0,300);
     if (mode !== "explain") moreButtons(box, reply);
-    if (voice) speakText(speakable(res.text), box._play);
+    if (voice) speakBubble(box, box._play, false);
   } catch (e) {
     if (e && e.code === "not_granted"){ sample = null; offline(text, box, voice); }
     else if (e && e.code === "limit") box.textContent = tr("Você usou todas as mensagens do professor de hoje. Volte amanhã, ou treine com PERGUNTA, NEGATIVA e OUTRO SUJEITO no caderno.", "You've used all of today's tutor messages. Come back tomorrow, or practise with QUESTION, NEGATIVE and OTHER SUBJECT in the notebook.");
@@ -1862,7 +1864,7 @@ function offline(text, box, voice){
   }
   box.textContent = ""; box.append(pixEl(d ? "check" : "chat",2), document.createTextNode(out)); box._raw = out;
   rec("b", out, d && typeof sc !== "undefined" ? sc : null);
-  if (voice) speakText(out, box._play);
+  if (voice) speakBubble(box, box._play, false);
 }
 
 /* ---------- voice ---------- */
@@ -1871,7 +1873,7 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 function speakable(raw){
   const lines = String(raw||"").split(/\n+/);
   const keep = lines.filter(l => !/^\s*(SCORE|CHALLENGE)\s*:/i.test(l)).map(l => l.replace(/^\s*FIX\s*:\s*/i, tr("Correção: ","Correction: ")).replace(/^\s*(REPLY|YOUR TURN)\s*:\s*/i,""));
-  return keep.map(l => l.trim()).filter(Boolean).map(l => /[.!?…:]$/.test(l) ? l : l + ".").join(" ").replace(/\[\[(.+?)\|.+?\]\]/g,"$1").replace(/\{\w+\}/g,"").replace(/\*\*/g,"").replace("ÁUDIO TRANSCRITO","").replace("VOICE MESSAGE","").trim().slice(0,1900);
+  return keep.map(l => l.trim()).filter(Boolean).map(l => /[.!?…:]$/.test(l) ? l : l + ".").join(" ").replace(/\[\[(.+?)\|.+?\]\]/g,"$1").replace(/\{\w+\}/g,"").replace(/\*\*/g,"").replace("ÁUDIO TRANSCRITO","").replace("VOICE MESSAGE","").replace(EMOJI," ").replace(/\s+/g," ").trim().slice(0,1900);
 }
 let actx = null, samSrc = null, samVoices = {};
 const NUM_PT = ["zero","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez"];
@@ -1986,7 +1988,7 @@ function samSay(text, done, pt, segs){
     const gap = 22050 * 0.14, total = bufs.reduce((n,b) => n + b.length + gap, 0);
     const ab = actx.createBuffer(1, Math.ceil(total), 22050), ch = ab.getChannelData(0);
     let off = 0; bufs.forEach(b => { ch.set(b, Math.floor(off)); off += b.length + gap; });
-    samSrc = actx.createBufferSource(); samSrc.buffer = ab; samSrc.playbackRate.value = RATE;
+    samSrc = actx.createBufferSource(); samSrc.buffer = ab; samSrc.playbackRate.value = RATE; if (SP) SP.dur = ab.duration;
     let node = samSrc;
     if (VOICES[vk].filter){
       const hp = actx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 140;
@@ -2002,7 +2004,10 @@ function samSay(text, done, pt, segs){
   } catch(e) { return false; }
 }
 /* ---------- playback: one at a time, play ⇄ pause ---------- */
-let paused = false, engine = null, speakSeq = 0, aiVoiceWarned = false, aud = null, curSpeak = null;
+let paused = false, engine = null, speakSeq = 0, aiVoiceWarned = false, aud = null, SP = null;
+/* emojis não são lidos (a voz falava "cat face"…) */
+const EMOJI = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}️‍⃣]/gu;
+const noEmoji = s => String(s).replace(EMOJI, " ");
 /* velocidade da fala: 1× e opções mais lentas; vale para todos os botões de ouvir */
 const RATES = [1, 0.85, 0.7, 0.5];
 let RATE = (() => { const r = +load("ea-rate", 1); return RATES.includes(r) ? r : 1; })();
@@ -2013,15 +2018,16 @@ function spdBtn(){
   b.onclick = e => { e.stopPropagation(); setRate(RATES[(RATES.indexOf(RATE) + 1) % RATES.length]); };
   return b;
 }
+/* trocar a velocidade não volta para o começo: segue da palavra que está sendo falada */
 function setRate(r){
   RATE = r; store("ea-rate", r);
   document.querySelectorAll(".spd").forEach(b => { b.textContent = rateLabel(r); b.classList.toggle("slow", r < 1); b.setAttribute("aria-label", tr("Velocidade da fala: ","Speech speed: ") + rateLabel(r)); });
-  if (!playing) return;
+  if (!playing || !SP) return;
   if (engine === "aud" && aud){ aud.playbackRate = r; return; }
-  if (engine === "ctx" && samSrc && !(curSpeak && curSpeak.ai)){ try { samSrc.playbackRate.value = r; } catch(e) {} return; }
-  if (curSpeak && !paused){ const c = curSpeak; stopSpeech(); speakText(c.text, c.btn, c.isMe); }
+  if (engine === "ctx" && samSrc){ try { samSrc.playbackRate.value = r; } catch(e) {} return; }
+  if (engine === "web" && !paused) startSpeak(SP.map, SP.idx, SP.btn, SP.isMe, SP.box);
 }
-/* áudio da IA como WAV num <audio>: deixa mais lento sem engrossar a voz */
+/* áudio da IA como WAV num <audio>: muda a velocidade sem engrossar a voz e permite pular para uma palavra */
 function wavURL(ab){
   if (ab._url) return ab._url;
   const d = ab.getChannelData(0), n = d.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf), rate = ab.sampleRate;
@@ -2031,14 +2037,13 @@ function wavURL(ab){
   for (let i = 0; i < n; i++){ const x = Math.max(-1, Math.min(1, d[i])); v.setInt16(44 + i * 2, x < 0 ? x * 32768 : x * 32767, true); }
   return ab._url = URL.createObjectURL(new Blob([buf], {type:"audio/wav"}));
 }
-function playAI(ab, done, my){
-  if (curSpeak) curSpeak.ai = true;
-  if (RATE === 1){ engine = "ctx"; playBuffer(ab, done); return; }
+function playAI(ab, done, my, startFrac){
   const a = aud = new Audio(wavURL(ab));
   try { a.preservesPitch = true; a.webkitPreservesPitch = true; a.mozPreservesPitch = true; } catch(e) {}
   a.playbackRate = RATE; engine = "aud";
   a.onended = () => { if (aud === a) aud = null; done(); };
-  a.play().catch(() => { if (my !== speakSeq || aud !== a) return; aud = null; engine = "ctx"; playBuffer(ab, done); });
+  if (startFrac > 0) a.addEventListener("loadedmetadata", () => { try { a.currentTime = startFrac * a.duration; } catch(e) {} }, {once:true});
+  a.play().catch(() => { if (my !== speakSeq || aud !== a) return; aud = null; engine = "ctx"; if (SP) SP.dur = ab.duration; playBuffer(ab, done); });
 }
 const aiCache = new Map();
 function btnIcon(btn, state){
@@ -2048,6 +2053,79 @@ function btnIcon(btn, state){
 }
 function markPlaying(btn){ if (!btn) return; btn.classList.add("on"); btnIcon(btn, "pause"); }
 function markIdle(btn){ if (!btn) return; btn.classList.remove("on"); btnIcon(btn, "play"); }
+/* ---------- palavras da mensagem: destaca a que está sendo falada e deixa tocar numa para continuar dali ---------- */
+const WORD_RE = /[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’-]*[A-Za-zÀ-ÿ]|[A-Za-zÀ-ÿ]|\d+/g;
+const normW = w => String(w).toLowerCase().replace(/[’]/g, "'").replace(/[^a-zà-ÿ0-9']/g, "");
+function speechMap(box){
+  const walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT, {acceptNode: n => n.parentNode.closest(".w,.kw,.sw,.lab,.vtag,.gloss,.ref,button,a,svg") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+  const list = []; while (walk.nextNode()) list.push(walk.currentNode);
+  list.forEach(tn => {
+    const s = tn.nodeValue; if (!/[A-Za-zÀ-ÿ\d]/.test(s)) return;
+    const frag = document.createDocumentFragment(); let last = 0, m; WORD_RE.lastIndex = 0;
+    while ((m = WORD_RE.exec(s))){ frag.append(document.createTextNode(s.slice(last, m.index))); frag.append(el("span","sw",m[0])); last = WORD_RE.lastIndex; }
+    frag.append(document.createTextNode(s.slice(last))); tn.replaceWith(frag);
+  });
+  let text = ""; const marks = [];
+  const add = s => { s = noEmoji(s).replace(/\s+/g, " "); if (!s) return; if ((!text || text.endsWith(" ")) && s.startsWith(" ")) s = s.slice(1); text += s; };
+  const endLine = () => { const t = text.replace(/\s+$/, ""); text = t ? (/[.!?…:;,]$/.test(t) ? t : t + ".") + " " : ""; };
+  const visit = node => {
+    for (const c of node.childNodes){
+      if (c.nodeType === 3){ add(c.nodeValue); continue; }
+      if (c.nodeType !== 1 || c instanceof SVGElement) continue;
+      const cl = c.classList;
+      if (cl.contains("gloss") || cl.contains("vtag") || cl.contains("pts")) continue;
+      if (cl.contains("lab")){ if (/^(FIX|CORREÇÃO)$/i.test(c.textContent.trim())) add(tr(" Correção: "," Correction: ")); continue; }
+      if (cl.contains("w") || cl.contains("kw") || cl.contains("sw")){
+        const s = noEmoji(c.textContent).replace(/\s+/g, " ").trim(); if (!s) continue;
+        marks.push({start: text.length, end: text.length + s.length, el: c, w: normW(s.split(" ")[0])}); text += s; continue;
+      }
+      if (cl.contains("ref")){ add(" " + c.textContent + " "); continue; }
+      visit(c); if (cl.contains("line")) endLine();
+    }
+  };
+  visit(box);
+  return {text: text.replace(/\s+$/, "").slice(0, 1900), marks};
+}
+function plainMap(text){
+  text = noEmoji(text).replace(/\s+/g, " ").trim().slice(0, 1900); const marks = []; let m; WORD_RE.lastIndex = 0;
+  while ((m = WORD_RE.exec(text))) marks.push({start: m.index, end: m.index + m[0].length, el: null, w: normW(m[0])});
+  return {text, marks};
+}
+let hlEl = null;
+function hl(i){
+  if (!SP) return; const mk = SP.map.marks[i]; if (!mk) return; SP.idx = i;
+  if (hlEl === mk.el) return; if (hlEl) hlEl.classList.remove("say"); hlEl = mk.el; if (hlEl) hlEl.classList.add("say");
+}
+function clearHl(){ if (hlEl) hlEl.classList.remove("say"); hlEl = null; }
+function markAt(off){ const mk = SP.map.marks; let j = Math.max(0, SP.from); while (j + 1 < mk.length && mk[j + 1].start - SP.base <= off) j++; return j; }
+const CPS = 14; /* letras por segundo da voz do aparelho em 1×, para estimar quando não há aviso de palavra */
+function hlTick(){
+  if (!SP || SP.my !== speakSeq) return;
+  const now = performance.now(), dt = (now - SP.last) / 1000; SP.last = now;
+  if (!paused){
+    if (engine === "aud" && aud && isFinite(aud.duration) && aud.duration > 0){ if (!aud.paused) hl(markAt(aud.currentTime / aud.duration * SP.text.length)); }
+    else if (engine === "ctx" && SP.dur){ SP.clock += dt * RATE; hl(markAt(Math.min(1, SP.clock / SP.dur) * SP.text.length)); }
+    else if (engine === "web" && !SP.boundary && SP.started){ SP.clock += dt * RATE * 0.95; hl(markAt(SP.clock * CPS)); }
+  }
+  requestAnimationFrame(hlTick);
+}
+function jumpTo(i){
+  if (!SP) return;
+  const mk = SP.map.marks[i]; if (!mk) return;
+  if (engine === "aud" && aud && isFinite(aud.duration)){
+    try { aud.currentTime = (mk.start - SP.base) / SP.text.length * aud.duration; } catch(e) {}
+    hl(i); if (paused){ aud.play().catch(() => {}); paused = false; btnIcon(playing, "pause"); }
+    return;
+  }
+  startSpeak(SP.map, i, SP.btn, SP.isMe, SP.box);
+}
+document.addEventListener("click", e => {
+  if (!SP || !SP.box || !playing) return;
+  const w = e.target.closest && e.target.closest(".w,.kw,.sw"); if (!w || !SP.box.contains(w)) return;
+  const j = SP.map.marks.findIndex(m => m.el === w); if (j < 0) return;
+  e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+  jumpTo(j);
+}, true);
 function stopSpeech(){
   speakSeq++;
   try { if (samSrc){ samSrc.onended = null; samSrc.stop(); samSrc = null; } } catch(e) {}
@@ -2056,13 +2134,14 @@ function stopSpeech(){
   try { if (tts) tts.stop(); } catch(e) {}
   try { if (window.speechSynthesis){ speechSynthesis.cancel(); speechSynthesis.resume(); } } catch(e) {}
   if (playing) markIdle(playing);
-  playing = null; paused = false; engine = null; curSpeak = null;
+  playing = null; paused = false; engine = null; SP = null; clearHl();
 }
 function pauseSpeech(){
   if (!playing || paused) return;
   if (engine === "aud" && aud){ aud.pause(); }
   else if (engine === "ctx" && actx){ actx.suspend(); }
-  else if (engine === "web" && window.speechSynthesis){ speechSynthesis.pause(); }
+  /* voz do aparelho: no Android o "pausar" não funciona direito; paro e depois sigo da palavra onde parou */
+  else if (engine === "web" && window.speechSynthesis && SP){ speakSeq++; SP.my = -1; try { speechSynthesis.cancel(); } catch(e) {} }
   else { stopSpeech(); return; }
   paused = true; btnIcon(playing, "play");
 }
@@ -2070,12 +2149,12 @@ function resumeSpeech(){
   if (!playing || !paused) return;
   if (engine === "aud" && aud) aud.play().catch(() => {});
   else if (engine === "ctx" && actx) actx.resume();
-  else if (engine === "web" && window.speechSynthesis) speechSynthesis.resume();
+  else if (engine === "web" && SP){ startSpeak(SP.map, SP.idx, SP.btn, SP.isMe, SP.box); return; }
   paused = false; btnIcon(playing, "pause");
 }
 function playBuffer(ab, done){
   actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume();
-  samSrc = actx.createBufferSource(); samSrc.buffer = ab; samSrc.playbackRate.value = RATE; samSrc.connect(actx.destination);
+  samSrc = actx.createBufferSource(); samSrc.buffer = ab; samSrc.playbackRate.value = RATE; if (SP) SP.dur = ab.duration; samSrc.connect(actx.destination);
   samSrc.onended = () => { samSrc = null; done(); }; samSrc.start();
 }
 async function aiAudio(text, pt){
@@ -2113,18 +2192,36 @@ function pickVoice(list, pt){
   return ok.find(v => pref.test(v.lang) && v.localService) || ok.find(v => pref.test(v.lang)) || ok.find(v => v.localService) || ok[0] || null;
 }
 try { if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.addEventListener("voiceschanged", () => { try { voiceList = speechSynthesis.getVoices(); } catch(e) {} }); } } catch(e) {}
-async function speakText(text, btn, isMe){
+/* textos soltos (tutorial, testar voz): toca/pausa sem destacar palavras */
+function speakText(text, btn, isMe){
   if (!text) return;
   if (playing && btn && playing === btn){ paused ? resumeSpeech() : pauseSpeech(); return; }
-  stopSpeech(); const my = speakSeq; playing = btn; markPlaying(btn); curSpeak = {text, btn, isMe};
-  const segs = isMe ? [{t: text, pt: false}] : langSegments(text);
+  startSpeak(plainMap(text), 0, btn, isMe, null);
+}
+/* mensagens do chat: destaca a palavra falada; tocar numa palavra continua dali */
+function speakBubble(box, btn, isMe){
+  if (playing && btn && playing === btn){ paused ? resumeSpeech() : pauseSpeech(); return; }
+  const map = speechMap(box); if (!map.text) return;
+  startSpeak(map, 0, btn, isMe, box);
+}
+async function startSpeak(map, idx, btn, isMe, box){
+  stopSpeech(); const my = speakSeq; playing = btn; markPlaying(btn);
+  idx = Math.max(0, Math.min(idx || 0, Math.max(0, map.marks.length - 1)));
+  const base = idx > 0 && map.marks[idx] ? map.marks[idx].start : 0, text = map.text.slice(base);
+  SP = {map, idx, from: idx, base, text, btn, isMe, box, my, last: performance.now(), clock: 0, dur: 0, boundary: false, started: false};
+  hl(idx); requestAnimationFrame(hlTick);
+  const segsOf = t => isMe ? [{t, pt: false}] : langSegments(t);
+  const segs = segsOf(text);
   const pt = segs.every(x => x.pt), mixed = !pt && segs.some(x => x.pt);
-  const done = () => { if (my !== speakSeq) return; markIdle(btn); playing = null; paused = false; engine = null; curSpeak = null; };
+  const done = () => { if (my !== speakSeq) return; markIdle(btn); playing = null; paused = false; engine = null; SP = null; clearHl(); };
   if (S.voice === "ai" && window.EA && EA.user() && EA.speak){
     try {
-      const ab = await aiAudio(text, mixed ? "mix" : pt);
+      /* a IA sempre gera a mensagem inteira (fica guardada); para começar no meio, pula até a palavra */
+      const full = map.text, fsegs = segsOf(full), fpt = fsegs.every(x => x.pt), fmix = !fpt && fsegs.some(x => x.pt);
+      const ab = await aiAudio(full, fmix ? "mix" : fpt);
       if (my !== speakSeq) return;
-      playAI(ab, done, my); return;
+      SP.base = 0; SP.from = 0; SP.text = full;
+      playAI(ab, done, my, base / full.length); return;
     } catch(e) {
       if (my !== speakSeq) return;
       console.warn("voz IA", e);
@@ -2138,10 +2235,20 @@ async function speakText(text, btn, isMe){
       if (my !== speakSeq) return;
       try {
         engine = "web";
+        let pos = 0;
         segs.forEach((sg, i) => {
           const u = new SpeechSynthesisUtterance(sg.t), v = pickVoice(voices, sg.pt);
           u.lang = v ? v.lang : (sg.pt ? "pt-BR" : "en-US"); if (v) { try { u.voice = v; } catch(e) {} } u.rate = 0.95 * RATE;
-          if (i === segs.length - 1){ u.onend = done; u.onerror = done; }
+          const fw = (sg.t.match(WORD_RE) || [""])[0], at = fw ? text.indexOf(fw, pos) : pos, off = at < 0 ? pos : at; pos = off + 1;
+          u.onstart = () => { if (my !== speakSeq || !SP) return; SP.started = true; if (!SP.boundary){ SP.clock = off / CPS; } };
+          u.onboundary = e => {
+            if (my !== speakSeq || !SP || (e.name && e.name !== "word")) return;
+            SP.boundary = true;
+            const w = normW((sg.t.slice(e.charIndex).match(WORD_RE) || [""])[0]), mk = SP.map.marks;
+            for (let j = SP.idx; j < Math.min(mk.length, SP.idx + 8); j++) if (mk[j].w === w){ hl(j); return; }
+            hl(markAt(off + e.charIndex));
+          };
+          if (i === segs.length - 1){ u.onend = done; u.onerror = e => { if (e && (e.error === "interrupted" || e.error === "canceled")) return; done(); }; }
           speechSynthesis.speak(u);
         });
         return;
@@ -2414,6 +2521,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-27k", d:"26/11", pt:["A palavra que está sendo falada fica azul","Enquanto o áudio toca (ou pausado), toque numa palavra para continuar dali","Mudar a velocidade não volta mais para o começo","A voz não lê mais os emojis"], en:["The word being spoken turns blue","While audio plays (or is paused), tap a word to continue from there","Changing the speed no longer restarts from the beginning","The voice no longer reads emojis"]},
   {id:"2026-11-27j", d:"26/11", pt:["Contador de uso da IA em ⚙: quantos usos restam hoje"], en:["AI use counter in ⚙: how many uses you have left today"]},
   {id:"2026-11-27i", d:"26/11", pt:["Correção: palavras apareciam com [[ ]] e às vezes surgia uma linha CONTINUITY na resposta"], en:["Fix: words sometimes showed up with [[ ]] and a CONTINUITY line appeared in replies"]},
   {id:"2026-11-27h", d:"26/11", pt:["Enter agora pula linha na mensagem. Para enviar, toque no aviãozinho (no computador, Ctrl+Enter também envia)"], en:["Enter now adds a new line. To send, tap the paper plane (on a computer, Ctrl+Enter also sends)"]},
