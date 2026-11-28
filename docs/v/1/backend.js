@@ -229,7 +229,9 @@ const EA = {
     const prompt = mode === "ex"
       ? "Word or expression: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON, all in English: {\"examples\": [\"three new, natural, varied example sentences using it with the same meaning\"]}."
       : mode === "pt"
-      ? "Word or expression: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON {\"pt\": \"the Brazilian Portuguese translation of it as used here (a whole sentence gets a full natural translation), max 40 words\"}."
+      ? "Word or expression: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nThe student is a Brazilian beginner. Return ONLY JSON {\"pt\": \"the Brazilian Portuguese translation of it as used here (a whole sentence gets a full natural translation), max 40 words\", \"classe\": \"its word class in Portuguese (substantivo, verbo, adjetivo, advérbio, expressão…) — empty for a whole sentence\", \"exemplos\": [{\"en\": \"a short, simple, natural English example using it with the same meaning\", \"pt\": \"its Brazilian Portuguese translation\"}, {\"en\": \"another one\", \"pt\": \"its translation\"}]}."
+      : mode === "expt"
+      ? "Word or expression: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nThe student is a Brazilian beginner. Return ONLY JSON {\"exemplos\": [three objects {\"en\": \"a new, short, simple, natural English example using it with the same meaning\", \"pt\": \"its Brazilian Portuguese translation\"}]}."
       : "Word or expression: \"" + w + "\". Sentence where it appears: \"" + ctx + "\".\nReturn ONLY JSON, all in English, no Portuguese: {\"pos\": \"part of speech\", \"def\": \"a short, simple definition in the style of the Cambridge Learner's Dictionary for the meaning used here — if it is a whole sentence or clause, a simple English explanation of what it means and when people say it — max 35 words\", \"example\": \"one new natural example sentence using it\"}.";
     const order = chatModelOk ? [chatModelOk, ...CHAT_MODELS.filter(x => x !== chatModelOk)] : CHAT_MODELS;
     let last = null;

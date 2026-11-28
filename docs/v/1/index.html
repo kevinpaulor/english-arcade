@@ -180,6 +180,10 @@ main[hidden],.chat[hidden]{display:none}
 .play{flex:none;width:30px;height:30px;display:grid;place-items:center;background:none;border:2px solid rgba(255,255,255,.35);padding:0}
 .play.on{border-color:#fff}
 .nospeak .play,.nospeak .spd{display:none}
+.gptw{display:block}
+.gptex{display:block;margin-top:6px}
+.gptex .gex{margin:0}
+.gpt{display:block;color:#ffd84a;font-size:14px;padding-left:12px}
 .aibar{height:14px;border:2px solid var(--line);background:var(--bg);margin:8px 0 6px;display:flex}
 .aibar i{display:block;height:100%;background:#3ddc6b}
 .aibar i.mid{background:#ffd84a}
@@ -383,7 +387,7 @@ textarea.lfield{height:110px;padding:10px 12px;resize:vertical;font:16px/1.45 'S
       <button type="button" class="mic" id="mic" aria-label="Gravar áudio" hidden></button>
       <button class="send" id="sendBtn" aria-label="Enviar"></button>
     </form>
-    <div class="ver" id="ver">v1 · build 27/11 08:44</div>
+    <div class="ver" id="ver">v1 · build 28/11 11:39</div>
   </section>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js"></script>
@@ -1349,7 +1353,20 @@ async function offlineInfo(word){
   return {pos: e[0][0], def: e[0][1], example: e[0][2] || "", lem, more: e.slice(1).map(x => ({pos: x[0], def: x[1]})), off: true};
 }
 function preloadDict(){ ["a","b","c","d","e","f","g","h","i","l","m","n","o","p","r","s","t","w"].forEach((l, i) => setTimeout(() => offLetter(l), 1500 + i * 400)); }
+/* modo FÁCIL: tradução em português + exemplos em inglês com tradução */
+function ptInfo(r, base){
+  const ex = (Array.isArray(r && r.exemplos) ? r.exemplos : []).map(x => [String(x && x.en || "").slice(0, 200), String(x && x.pt || "").slice(0, 200)]).filter(x => x[0]).slice(0, 4);
+  return {pt: String(r && r.pt || base || "").slice(0, 300), cls: String(r && r.classe || "").slice(0, 30), ex, ptv: 2};
+}
+function ptExamples(box, ex){ ex.forEach(([en, pt]) => { const d = el("span","gptex"); d.append(el("span","gex","Ex.: " + en)); if (pt) d.append(el("span","gpt","→ " + pt)); box.append(d); }); }
+function ptGloss(box, word, info){
+  const h = el("span","gptw"); h.append(el("b",null,word), document.createTextNode(" — " + (info.pt || "…"))); if (info.cls) h.append(el("small","wpos"," (" + info.cls + ")"));
+  box.append(h);
+  if (info.ex === "…") box.append(el("span","gex","…")); else ptExamples(box, info.ex || []);
+  if (info.note) box.append(el("span","gmore",info.note));
+}
 function fillGloss(g, word, info){
+  if (info.ptv){ g.textContent = ""; ptGloss(g, word, info); const a = el("a","cam px","CAMBRIDGE ↗"); a.href = "https://dictionary.cambridge.org/dictionary/english/" + encodeURIComponent(word.toLowerCase()); a.target = "_blank"; a.rel = "noopener"; g.append(a); return; }
   g.textContent = "";
   if (info.pt){ g.append(el("b",null,word), document.createTextNode(" — " + info.pt)); if (!info.def) return; g.append(el("br")); }
   if (info.def){
@@ -1364,9 +1381,9 @@ async function lookupWord(anchor, word, color){
   if (anchor._gloss){ anchor._gloss.remove(); anchor._gloss = null; anchor.classList.remove("on"); return; }
   document.querySelectorAll(".w.on").forEach(x => { if (x._gloss) x._gloss.remove(); x._gloss = null; x.classList.remove("on"); });
   const g = glossBox(anchor, color); anchor._gloss = g; anchor.classList.add("on");
-  const mode = EN() ? "en" : "pt", key = mode + ":" + word.toLowerCase();
+  const mode = EN() ? "en" : "pt", key = (mode === "pt" ? "pt2" : mode) + ":" + word.toLowerCase();
   if (DICT[key]){ fillGloss(g, word, DICT[key]); return; }
-  if (mode === "pt"){ const lm = localMeaning(word); if (lm){ fillGloss(g, word, {pt: lm}); return; } }
+  if (mode === "pt") return lookupPt(g, anchor, word, key);
   const off = await offlineInfo(word);
   if (anchor._gloss !== g) return;
   if (off && mode === "en"){ fillGloss(g, word, off); return; }
@@ -1380,6 +1397,24 @@ async function lookupWord(anchor, word, color){
     DICT[key] = info; const ks = Object.keys(DICT); if (ks.length > 500) delete DICT[ks[0]]; store("ea-dict", DICT);
     if (anchor._gloss === g) fillGloss(g, word, off ? Object.assign({}, off, info) : info);
   } catch(e) { if (anchor._gloss === g && off){ fillGloss(g, word, off); return; } if (anchor._gloss === g) g.textContent = e && e.code === "limit" ? tr("Limite da IA de hoje atingido.", "Daily AI limit reached.") : tr("Não consegui buscar agora.", "Couldn't look it up right now."); }
+}
+async function lookupPt(g, anchor, word, key){
+  const lm = localMeaning(word);
+  fillGloss(g, word, {pt: lm || "…", ex: "…", ptv: 2});
+  const fail = async msg => {
+    if (anchor._gloss !== g) return;
+    if (lm){ fillGloss(g, word, {pt: lm, ex: [], ptv: 2, note: msg}); return; }
+    const off = await offlineInfo(word); if (anchor._gloss !== g) return;
+    if (off){ fillGloss(g, word, off); g.prepend(el("span","gmore",msg)); } else g.textContent = msg;
+  };
+  if (!(window.EA && EA.user() && EA.define)) return fail("Entre na conta para ver a tradução.");
+  const sentence = (anchor.closest(".line,.phr") || anchor.parentNode).textContent.slice(0, 240);
+  try {
+    const info = ptInfo(await EA.define(word, sentence, "pt"), lm);
+    if (!info.pt) throw 0;
+    DICT[key] = info; const ks = Object.keys(DICT); if (ks.length > 500) delete DICT[ks[0]]; store("ea-dict", DICT);
+    if (anchor._gloss === g) fillGloss(g, word, info);
+  } catch(e) { fail(e && e.code === "limit" ? "Limite da IA de hoje atingido: sem tradução agora." : "Não consegui traduzir agora."); }
 }
 document.addEventListener("click", e => {
   const w = e.target.closest && e.target.closest(".w"); if (!w) return;
@@ -1505,12 +1540,16 @@ async function wordSheet(text, sentence, anchor){
   chB.onclick = () => { closeSheet(); if (S.art && S.view === "read") S.ctx = "art"; S.view = "chat"; render(); $("msg").value = "\"" + text + "\" — "; growMsg(); $("msg").focus(); };
   exB.onclick = async () => {
     exB.disabled = true; const ex = el("div","wex","…"); body.append(ex);
-    try { const r = await EA.define(text, sentence, "ex"); ex.textContent = ""; (r.examples || []).slice(0, 4).forEach(s => ex.append(el("span",null,"• " + String(s).slice(0, 220)))); }
+    try {
+      if (!EN()){ const r = await EA.define(text, sentence, "expt"); ex.textContent = ""; ptExamples(ex, ptInfo(r).ex); }
+      else { const r = await EA.define(text, sentence, "ex"); ex.textContent = ""; (r.examples || []).slice(0, 4).forEach(s => ex.append(el("span",null,"• " + String(s).slice(0, 220)))); }
+    }
     catch(e) { ex.textContent = tr("Não consegui buscar exemplos agora.","Couldn't get examples right now."); exB.disabled = false; }
   };
-  const mode = EN() ? "en" : "pt", key = mode + ":" + text.toLowerCase();
+  const mode = EN() ? "en" : "pt", key = (mode === "pt" ? "pt2" : mode) + ":" + text.toLowerCase();
   const show = info => {
     body.textContent = "";
+    if (info.ptv){ ptGloss(body, text.length > 40 ? "" : text, info); if (!/\s/.test(text)){ const c = el("a","cam px","CAMBRIDGE ↗"); c.href = "https://dictionary.cambridge.org/dictionary/english/" + encodeURIComponent(text.toLowerCase()); c.target = "_blank"; c.rel = "noopener"; body.append(c); } return; }
     if (info.pt){ body.append(el("b",null,info.pt)); if (!info.def) return; }
     if (info.pos || info.lem) body.append(el("small","wpos",(info.lem ? "→ " + info.lem + " · " : "") + (info.pos || "")));
     body.append(el("span",null,info.def || ""));
@@ -1519,7 +1558,14 @@ async function wordSheet(text, sentence, anchor){
     if (!/\s/.test(text)){ const c = el("a","cam px","CAMBRIDGE ↗"); c.href = "https://dictionary.cambridge.org/dictionary/english/" + encodeURIComponent(text.toLowerCase()); c.target = "_blank"; c.rel = "noopener"; body.append(c); }
   };
   if (DICT[key]) return show(DICT[key]);
-  if (mode === "pt"){ const lm = localMeaning(text); if (lm) return show({pt: lm}); }
+  if (mode === "pt"){
+    const lm = localMeaning(text); show({pt: lm || "…", ex: "…", ptv: 2});
+    const fail = msg => { if ($("wsheet") !== sh) return; if (lm) show({pt: lm, ex: [], ptv: 2, note: msg}); else body.textContent = msg; };
+    if (!(window.EA && EA.user() && EA.define)) return fail("Entre na conta para ver a tradução.");
+    try { const info = ptInfo(await EA.define(text, sentence, "pt"), lm); if (!info.pt) throw 0; DICT[key] = info; store("ea-dict", DICT); if ($("wsheet") === sh) show(info); }
+    catch(e) { fail(e && e.code === "limit" ? "Limite da IA de hoje atingido: sem tradução agora." : "Não consegui traduzir agora."); }
+    return;
+  }
   const off = /\s/.test(text) ? null : await offlineInfo(text);
   if ($("wsheet") !== sh) return;
   if (off && mode === "en") return show(off);
@@ -2386,7 +2432,7 @@ function submitNow(){
   if (sample) askClaude(v, voice); else offline(v, null, voice);
 }
 $("form").onsubmit = e => { e.preventDefault(); if (listening){ sendAfterRec = true; try { srRec && srRec.stop(); } catch(x) {} return; } submitNow(); };
-document.querySelectorAll(".lv").forEach(b => b.onclick = () => { S.level = b.dataset.lv; store("ea-level", S.level); render(); });
+document.querySelectorAll(".lv").forEach(b => b.onclick = () => { S.level = b.dataset.lv; store("ea-level", S.level); document.querySelectorAll(".gloss").forEach(g => g.remove()); document.querySelectorAll(".w.on").forEach(x => { x._gloss = null; x.classList.remove("on"); }); closeSheet(); render(); });
 $("t-chat").onclick = () => { S.view = "chat"; render(); };
 $("t-day").onclick = () => { S.view = "day"; render(); };
 $("t-toc").onclick = () => { S.view = "toc"; render(); };
@@ -2542,6 +2588,7 @@ $("installClose").onclick = () => { $("installModal").hidden = true; };
 
 /* ---------- NOVIDADES (changelog público) ---------- */
 const CHANGELOG = [
+  {id:"2026-11-28a", d:"28/11", pt:["Modo FÁCIL: ao tocar numa palavra aparece a tradução em português, a classe da palavra e exemplos em inglês com tradução","+ EXEMPLOS no modo FÁCIL também vem com tradução"], en:["EASY mode: tapping a word shows the Portuguese translation, word class and examples with translation"]},
   {id:"2026-11-27m", d:"27/11", pt:["O tutor agora entende pedidos como \"o que eu falei acima?\" e \"traduza\" e traduz exatamente o que você escreveu","Ele não muda mais o sentido da sua frase: frase certa mas estranha conta como certa, e ele pergunta o que você quis dizer"], en:["The tutor now understands requests like \"what did I say above?\" and \"translate\", translating exactly what you wrote","It no longer changes your meaning: a correct but odd sentence counts as correct, and it checks what you meant"]},
   {id:"2026-11-27l", d:"27/11", pt:["Destaque das palavras mais sincronizado com a voz: acerta a posição a cada frase e aprende a velocidade da voz do seu aparelho"], en:["Word highlight better synced with the voice: it re-syncs every sentence and learns your device voice speed"]},
   {id:"2026-11-27k", d:"26/11", pt:["A palavra que está sendo falada fica azul","Enquanto o áudio toca (ou pausado), toque numa palavra para continuar dali","Mudar a velocidade não volta mais para o começo","A voz não lê mais os emojis"], en:["The word being spoken turns blue","While audio plays (or is paused), tap a word to continue from there","Changing the speed no longer restarts from the beginning","The voice no longer reads emojis"]},
